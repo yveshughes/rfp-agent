@@ -65,3 +65,13 @@ test('discussion wakes Billy and submission decisions still take priority',()=>{
   for(const discussionState of ['ready','thinking']) assert.equal(resolveBillyMotion(ready,{discussionState}).motion,'discussing');
   assert.equal(resolveBillyMotion(ready,{discussionState:null}).motion,'snoozing');
 });
+
+
+test('opening chat wakes Billy while real work and decisions retain priority',()=>{
+  assert.equal(resolveBillyMotion(ready,{chatOpen:true}).motion,'discussing');
+  assert.equal(resolveBillyMotion(ready,{chatOpen:false}).motion,'snoozing');
+  assert.equal(resolveBillyMotion(ready,{chatOpen:true,discussionState:'listening'}).motion,'voice');
+  assert.equal(resolveBillyMotion({...ready,browser:{pending:{id:'approval'}}},{chatOpen:true}).motion,'waiting');
+  assert.equal(resolveBillyMotion({...ready,document_jobs:1},{chatOpen:true}).motion,'reading');
+  assert.equal(resolveBillyMotion(ready,{chatOpen:true,connected:false}).tone,'offline');
+});

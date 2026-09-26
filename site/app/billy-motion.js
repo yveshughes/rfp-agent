@@ -9,7 +9,7 @@ export const motions = {
 };
 
 // Visual state follows work, never a timer pretending to perform a task.
-export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null}={}) {
+export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null, chatOpen=false}={}) {
   if (!connected || !state) return {motion:'idle',label:'Workspace disconnected',tone:'offline'};
   const browser=state.browser || {};
   if(browser.pending) return {motion:'waiting',label:'Waiting for your decision',tone:'attention'};
@@ -18,6 +18,7 @@ export function resolveBillyMotion(state, {connected=true, documentRequests=0, d
   if(documentRequests>0 || state.document_jobs>0) return {motion:'reading',label:'Reading and saving a document',tone:'working'};
   if(browser.busy) return {motion:'researching',label:browser.status || 'Researching a source',tone:'working'};
   if(browser.error) return {motion:'waiting',label:'Needs your attention',tone:'attention'};
+  if(chatOpen) return {motion:'discussing',label:'Ready to talk it through with you.',tone:'working'};
   return {motion:'snoozing',label:'All quiet. Ready when you are.',tone:'resting'};
 }
 

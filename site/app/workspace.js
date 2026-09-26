@@ -2,7 +2,7 @@ import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=navigation-1';
-import {createBillyMotion,setupMotionPreview} from './billy-motion.js';
+import {createBillyMotion,setupMotionPreview} from './billy-motion.js?v=chat-presence-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -35,7 +35,7 @@ const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hou
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
 let documentRequests=0, workspaceConnected=false, discussionState=null;
-const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState});
+const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState,chatOpen:currentView==='chats'});
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
@@ -56,7 +56,7 @@ async function api(path, data) {
 }
 function showView(name) {
   if(name!=='rfps')++openingRFP;
-  currentView=name;discussion.view(name);
+  currentView=name;discussion.view(name);updateBillyMotion();
   Object.keys(views).forEach(view=>{ $('#view-'+view).hidden=view!==name; document.querySelector(`[data-view="${view}"]`).classList.toggle('selected',view===name); });
   $('#view-title').textContent=views[name];
   $('#profile-progress').hidden=name!=='company';
