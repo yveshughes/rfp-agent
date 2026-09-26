@@ -62,11 +62,23 @@ class CompanyTests(unittest.IsolatedAsyncioTestCase):
         result=await server.company_evidence(ProfileEvidence(**req,page=1))
         self.assertEqual(result['facts']['insurance.limits']['status'],'Evidence linked')
         self.assertEqual(result['facts']['insurance.limits']['document_id'],doc['id'])
-        result=await self.answer('Actually $1M',field='insurance.limits')
+        result=await self.answer('$2M per occurrence',field='insurance.limits',action='edit')
+        self.assertEqual(result['profile']['facts']['insurance.limits']['document_id'],doc['id'])
+        result=await self.answer('Actually $1M',field='insurance.limits',action='edit')
         self.assertEqual(result['profile']['facts']['insurance.limits']['status'],'Reported by you')
         self.assertIsNone(result['profile']['facts']['insurance.limits']['document_id'])
         with self.assertRaises(server.HTTPException):
             await server.company_evidence(ProfileEvidence(**{**req,'document_id':'missing'},page=1))
+
+    async def test_direct_edits_do_not_accept_pending_research_or_queue_work(self):
+        await self.answer('No')
+        result=await self.answer('Yes',action='edit')
+        self.assertEqual(result['profile']['facts']['insurance.coverage']['value'],'Yes')
+        self.assertEqual(result['profile']['tasks'],[])
+        with server.db() as c:
+            self.assertEqual(c.execute('SELECT stage FROM company_dialogue WHERE field=?',('insurance.coverage',)).fetchone()['stage'],'')
+        result=await self.answer('',action='edit')
+        self.assertNotIn('insurance.coverage',result['profile']['facts'])
 
     async def test_field_conversations_are_scoped_and_do_not_infer_unknowns(self):
         await self.answer('No')

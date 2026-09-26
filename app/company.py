@@ -20,7 +20,7 @@ FIELDS = {f['id']:f['label'] for s in SCHEMA for f in s['fields']}
 
 class ProfileAnswer(BaseModel):
     field: str
-    text: str = Field(min_length=1,max_length=6000)
+    text: str = Field(max_length=6000)
     action: str = 'answer'
 
 class ProfileEvidence(BaseModel):
@@ -68,13 +68,22 @@ def register_company(app, db, event):
     async def company_chat(req:ProfileAnswer):
         check_field(req.field)
         text=req.text.strip()
-        if not text: raise HTTPException(400,'Add an answer first.')
-        if req.action not in ('answer','ask','insurance_example'): raise HTTPException(400,'Unknown conversation action.')
+        if not text and req.action!='edit': raise HTTPException(400,'Add an answer first.')
+        if req.action not in ('answer','ask','insurance_example','edit'): raise HTTPException(400,'Unknown conversation action.')
         with db() as c:
             c.execute('BEGIN IMMEDIATE')
             row=c.execute('SELECT stage FROM company_dialogue WHERE field=?',(req.field,)).fetchone()
             stage=row['stage'] if row else ''
-            if req.action=='insurance_example':
+            if req.action=='edit':
+                previous=c.execute('SELECT value FROM company_facts WHERE field=?',(req.field,)).fetchone()
+                if not text:
+                    c.execute('DELETE FROM company_facts WHERE field=?',(req.field,))
+                elif not previous or previous['value']!=text:
+                    fact(c,req.field,text,'Reported by you')
+                message(c,req.field,'user',f'Direct edit: {text}' if text else 'Cleared this company detail.')
+                reply='Saved your edit.' if text else 'Cleared this detail.'
+                stage=''
+            elif req.action=='insurance_example':
                 if req.field!='insurance.coverage': raise HTTPException(400,'Choose insurance coverage for this example.')
                 message(c,req.field,'user','Walk me through the $5M liability insurance example.')
                 reply='Do you have $5M in general liability insurance? This is an example requirement; I’ll need the actual RFP wording and policy documents to assess a match.'
@@ -115,7 +124,7 @@ def register_company(app, db, event):
                     reply=f'Updated {FIELDS[req.field].lower()} in your company profile. It’s marked {"unknown" if unsure else "reported by you"}. You can link a supporting document when you have it.'
             c.execute('INSERT OR REPLACE INTO company_dialogue VALUES (?,?)',(req.field,stage))
             message(c,req.field,'billy',reply)
-        if req.action=='answer': event('profile','Company profile updated',FIELDS[req.field])
+        if req.action in ('answer','edit'): event('profile','Company profile updated',FIELDS[req.field])
         return {'reply':reply, 'profile':await company_profile()}
 
     @app.post('/api/company/evidence')
