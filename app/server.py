@@ -509,4 +509,7 @@ async def document_pdf(doc_id: str, download: bool=False):
 from app.company import register_company
 company_profile, company_chat, company_evidence, company_task = register_company(app, db, event)
 
+from app.rfp_workspace import register_rfp_workspace
+rfp_workspace, save_response_section, add_response_note = register_rfp_workspace(app, db, require_rfp, event)
+
 app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')

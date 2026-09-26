@@ -75,3 +75,11 @@ Company Profile has a secondary section sidebar: Company, Registrations, Experie
 Profile details appear as document rows with line separators. Clicking a row opens a textarea with Save/Cancel; direct edits use the `edit` action, never accept a pending research offer, and never queue work. Unchanged values retain their evidence links. Facts are marked Reported by you, Unknown, Gap reported, or Evidence linked. Only an explicitly selected existing PDF and valid original page create an evidence link. Corrections clear previous citations. Task completion does not independently verify coverage. Main Chats can continue a scoped company conversation; its active field persists across reloads in session storage.
 
 The illustrative $5M insurance question offers research after a negative answer and queues research only after acceptance. Yes/unsure answers queue verification. Follow-ups appear in Billy’s activity panel; they do not execute automatically. Automatic extraction of policy details, independent policy verification, general model reasoning and voice are not implemented. No insurer is contacted or policy purchased by these endpoints.
+
+## RFP response workspace
+
+An RFP opens as a center-pane page with Files and three editable response-section tabs. The section names, drafts, checklists, and discussion notes persist in SQLite through `app/rfp_workspace.py`. Existing PDFs remain under Files with original review/download actions. Metadata stays in a collapsible details section.
+
+Progress is the proportion of manually completed checklist items; overall progress is weighted by the total number of items across sections, excluding files. An empty draft cannot reach 100%. Starter checklists are suggestions, not requirements extracted from the source. Saving sections uses optimistic versions to reject stale writes. Unsaved drafts are kept in memory while switching sections; use Save section before reloading or closing the app.
+
+Each tab summarizes its remaining saved checklist items and has a scoped text-notes panel. Notes can be explicitly appended to a response draft. Model-generated discussion replies, automatic requirement extraction, and voice are not connected yet. No response submission is triggered by drafting or completing a checklist.
