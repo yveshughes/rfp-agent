@@ -22,16 +22,17 @@ class Page(HTMLParser):
     """Read public listing rows, links, and main text without executing site code."""
     def __init__(self, html, url):
         super().__init__(convert_charrefs=True)
-        self.url=url; self.links=[]; self.rows=[]; self.parts=[]; self.main=[]
+        self.url=url; self.links=[]; self.rows=[]; self.parts=[]; self.main=[]; self.detail=[]
         self.skip=0; self.main_depth=0; self.anchor=None; self.row=None; self.rfp_table=False; self.stack=[]
         self.feed(html)
-        self.text=' '.join(self.main or self.parts)
+        self.text=' '.join(self.detail or self.main or self.parts)
     def handle_starttag(self, tag, attrs):
         attrs=dict(attrs)
         rfp_container='view-id-rfps' in attrs.get('class','').split()
         if rfp_container: self.rfp_table=True
         if tag not in ('area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'):
-            self.stack.append((tag,rfp_container or bool(self.stack and self.stack[-1][1])))
+            detail_container=bool({'field-name-body','bidsrfps'} & set(attrs.get('class','').split()))
+            self.stack.append((tag,rfp_container or bool(self.stack and self.stack[-1][1]),detail_container or bool(self.stack and self.stack[-1][2])))
         if tag in ('script','style','nav','header','footer'): self.skip+=1
         if tag=='main': self.main_depth+=1
         if self.skip: return
@@ -44,6 +45,7 @@ class Page(HTMLParser):
         if self.skip or not data.strip(): return
         text=' '.join(data.split()); self.parts.append(text)
         if self.main_depth: self.main.append(text)
+        if self.stack and self.stack[-1][2]: self.detail.append(text)
         if self.row is not None: self.row['text'].append(text)
         if self.anchor is not None: self.anchor['parts'].append(text)
     def handle_endtag(self, tag):
@@ -114,10 +116,13 @@ def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, e
     with db() as c:
         c.executescript('''
         CREATE TABLE IF NOT EXISTS opportunity_sources(rfp_id TEXT,source_id INTEGER,listing_url TEXT,last_seen REAL,PRIMARY KEY(rfp_id,source_id));
-        CREATE TABLE IF NOT EXISTS opportunity_reviews(rfp_id TEXT PRIMARY KEY,body TEXT,reviewed REAL,error TEXT);
+        CREATE TABLE IF NOT EXISTS opportunity_reviews(rfp_id TEXT PRIMARY KEY,body TEXT,reviewed REAL,error TEXT,complete INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS discovered_rfps(rfp_id TEXT PRIMARY KEY,pursued INTEGER DEFAULT 0);
         CREATE TABLE IF NOT EXISTS source_scans(source_id INTEGER PRIMARY KEY,checked REAL,status TEXT,detail TEXT,pages INTEGER);
         ''')
+        if 'complete' not in {r['name'] for r in c.execute('PRAGMA table_info(opportunity_reviews)')}:
+            c.execute('ALTER TABLE opportunity_reviews ADD COLUMN complete INTEGER DEFAULT 0')
+            c.execute("UPDATE opportunity_reviews SET complete=1 WHERE reviewed IS NOT NULL")
     task=None
 
     def persist(source, item):
@@ -138,9 +143,9 @@ def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, e
             elif c.execute('SELECT 1 FROM discovered_rfps WHERE rfp_id=? AND pursued=0',(rid,)).fetchone():
                 c.execute("UPDATE rfps SET title=?,deadline=CASE WHEN ? != '' THEN ? ELSE deadline END,updated=? WHERE id=?",(item['title'],item.get('deadline',''),item.get('deadline',''),now,rid))
             c.execute('INSERT OR REPLACE INTO opportunity_sources VALUES (?,?,?,?)',(rid,source['id'],item['url'],now))
-            old=c.execute('SELECT reviewed FROM opportunity_reviews WHERE rfp_id=?',(rid,)).fetchone()
-            if not item.get('error') or not old or not old['reviewed']:
-                c.execute('INSERT OR REPLACE INTO opportunity_reviews VALUES (?,?,?,?)',(rid,item.get('text',item['excerpt']),now if not item.get('error') else None,item.get('error','')))
+            old=c.execute('SELECT reviewed,complete FROM opportunity_reviews WHERE rfp_id=?',(rid,)).fetchone()
+            if not item.get('error') or not old or not old['reviewed'] or (item.get('partial') and not old['complete']):
+                c.execute('INSERT OR REPLACE INTO opportunity_reviews(rfp_id,body,reviewed,error,complete) VALUES (?,?,?,?,?)',(rid,item.get('text',item['excerpt']),now if not item.get('error') or item.get('partial') else None,item.get('error',''),int(not item.get('error'))))
             elif item.get('error'):
                 c.execute('UPDATE opportunity_reviews SET error=? WHERE rfp_id=?',(item['error'],rid))
         return rid
@@ -177,16 +182,21 @@ def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, e
                     item['attachments']=([{'url':final,'title':item['title']}] if page is None else item.get('listing_attachments',[l for l in page.links if urlsplit(l['url']).path.lower().endswith('.pdf')]))
                     item['text']=page.text if page else item['excerpt']
                     rid=persist(source,dict(item,error='Review in progress'))
-                    attachment_errors=[]
+                    attachment_errors=[]; extraction_limited=False; download_failed=False
                     for attachment in {l['url']:l for l in item['attachments']}.values():
                         try:
                             pdf,pdfurl=await fetch_public(attachment['url'])
                             saved=await store_pdf(pdf,urlsplit(pdfurl).path.split('/')[-1],rfp_id=rid,source_url=pdfurl,automatic=True)
                             with db() as c: doc=c.execute('SELECT pages,total_pages,last_page FROM documents WHERE id=?',(saved['id'],)).fetchone()
                             item['text']+='\n'+'\n'.join(p['text'] for p in json.loads(doc['pages']))
-                            if doc['last_page']<doc['total_pages']: attachment_errors.append('A PDF exceeds the 100-page extraction limit; original retained.')
-                        except Exception as exc: attachment_errors.append(f'PDF could not be read ({getattr(exc,"detail",str(exc))}).')
+                            if doc['last_page']<doc['total_pages']:
+                                extraction_limited=True
+                                attachment_errors.append('A PDF exceeds the 100-page extraction limit; original retained.')
+                        except Exception as exc:
+                            download_failed=True
+                            attachment_errors.append(f'PDF could not be read ({getattr(exc,"detail",str(exc))}).')
                     if attachment_errors:
+                        item['partial']=extraction_limited and not download_failed
                         item['error']=' '.join(attachment_errors)[:1000]
                         errors.append(f'{item["title"]}: {item["error"]}')
                     persist(source,item)

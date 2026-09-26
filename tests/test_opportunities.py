@@ -158,3 +158,52 @@ class OpportunityTests(unittest.IsolatedAsyncioTestCase):
         _,_,_,scan=register_opportunities(FastAPI(),server.db,[self.source],server.b,fetch,AsyncMock(),server.event)
         await scan(self.source)
         self.assertEqual(seen,[URL,URL+'/environmental','https://berkeleyca.gov/original.pdf'])
+
+    def test_municode_review_text_excludes_navigation_topics(self):
+        html='<div>Environmental water and groundwater navigation</div><div class="bidsrfps">Open</div><div class="field-name-body"><p>Catering meals for seniors.</p></div><div>City map and environmental department</div>'
+        page=Page(html,'https://example.com/rfp')
+        self.assertEqual(page.text,'Open Catering meals for seniors.')
+
+    async def test_partial_extraction_can_rank_with_visible_warning(self):
+        from fastapi import FastAPI
+        from app.opportunities import register_opportunities
+        import json
+        with server.db() as c:
+            c.execute('INSERT OR REPLACE INTO documents(id,name,first_page,last_page,added,pages,total_pages) VALUES (?,?,?,?,?,?,?)',('partial-fixture','long.pdf',1,100,1,json.dumps([{'page':1,'text':'CEQA environmental review'}]),101))
+        async def fetch(url):
+            if url==URL: return listing().encode(),url
+            if url.endswith('.pdf'): return b'%PDF-fixture',url
+            return b'<main>Environmental review <a href="/long.pdf">Supporting plan</a></main>',url
+        _,_,_,scan=register_opportunities(FastAPI(),server.db,[self.source],server.b,fetch,AsyncMock(return_value={'id':'partial-fixture'}),server.event)
+        await scan(self.source)
+        with server.db() as c:
+            r=c.execute('SELECT * FROM opportunity_reviews').fetchone()
+            self.assertIsNotNone(r['reviewed'])
+            self.assertIn('100-page',r['error'])
+            self.assertIn('CEQA',r['body'])
+
+    async def test_partial_refresh_updates_partial_but_preserves_complete_evidence(self):
+        item={'title':'Environmental review','url':URL+'/environmental','excerpt':'Listing','text':'Primary RFP v1','partial':True,'error':'100-page extraction limit'}
+        rid=server.persist_opportunity(self.source,item)
+        server.persist_opportunity(self.source,dict(item,text='New primary RFP v2'))
+        with server.db() as c:
+            r=c.execute('SELECT * FROM opportunity_reviews WHERE rfp_id=?',(rid,)).fetchone()
+            self.assertEqual(r['body'],'New primary RFP v2');self.assertFalse(r['complete'])
+        server.persist_opportunity(self.source,dict(item,text='Complete review v3',error='',partial=False))
+        server.persist_opportunity(self.source,dict(item,text='Incomplete v4'))
+        with server.db() as c:
+            r=c.execute('SELECT * FROM opportunity_reviews WHERE rfp_id=?',(rid,)).fetchone()
+            self.assertEqual(r['body'],'Complete review v3');self.assertTrue(r['complete'])
+
+    def test_quality_migration_preserves_prior_success_with_later_error(self):
+        import sqlite3
+        from fastapi import FastAPI
+        from app.opportunities import register_opportunities
+        with tempfile.TemporaryDirectory() as folder:
+            def db():
+                c=sqlite3.connect(folder+'/old.sqlite');c.row_factory=sqlite3.Row;return c
+            with db() as c:
+                c.execute('CREATE TABLE opportunity_reviews(rfp_id TEXT PRIMARY KEY,body TEXT,reviewed REAL,error TEXT)')
+                c.execute('INSERT INTO opportunity_reviews VALUES (?,?,?,?)',('previous','Complete prior evidence',1,'Latest download failed'))
+            register_opportunities(FastAPI(),db,[],server.b,AsyncMock(),AsyncMock(),lambda *args:None)
+            with db() as c: self.assertEqual(c.execute('SELECT complete FROM opportunity_reviews').fetchone()[0],1)
