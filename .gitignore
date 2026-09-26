@@ -16,3 +16,9 @@
 **/.DS_Store
 **/node_modules/
 **/__pycache__/
+
+# Proprietary RFP source directory: keep local and deployed copies private.
+# Match at any depth, including inside otherwise publishable directories.
+**/rfpsonar-found-rfp-sources*.json
+**/rfp-sources*.json
+**/rfp-source-directory*.json

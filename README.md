@@ -38,7 +38,7 @@ The technical page’s **Key decisions** section (`/technical/#decisions`) recor
 
 ## Repository boundaries
 
-The root `.gitignore` allows only `site/`, `app/`, `tests/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
+The root `.gitignore` allows only `site/`, `app/`, `tests/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. The proprietary RFP source directory is not included or licensed with this repository. Explicit ignore rules also exclude its local/deployment filenames at any directory depth. Supply your own source data through `BILLY_SOURCES`. Audit the staged file list before every publication.
 
 ## Assets and license
 
