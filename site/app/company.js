@@ -89,5 +89,5 @@ export function createCompanyProfile({api,esc,toast,showView,addMessage,openDocu
   document.querySelectorAll('[data-profile-answer]').forEach(b=>b.onclick=()=>send(b.dataset.profileAnswer));
   $('#profile-evidence-form').onsubmit=async e=>{e.preventDefault();const b=$('#profile-evidence-save');b.disabled=true;try{profile=await api('/company/evidence',{field,document_id:$('#profile-evidence-document').value,page:Number($('#profile-evidence-page').value),value:$('#profile-evidence-value').value});render();renderDiscussion();toast('Detail saved with its source page.');}catch(err){toast(err.message);}finally{b.disabled=false;}};
   $('#profile-add-document').onclick=()=>{$('#profile-dialog').close();section='documents';render();};
-  return {load,render,discuss,hasChat:()=>!!chatField,async answer(text){if(busy){toast('Billy is saving your previous answer.');return false;}field=chatField;return await send(text);},documents(){section='documents';showView('company');render();}};
+  return {load,render,discuss,selectSection(id){if(id==='documents'||profile?.sections.some(s=>s.id===id)){section=id;render();}},hasChat:()=>!!chatField,async answer(text){if(busy){toast('Billy is saving your previous answer.');return false;}field=chatField;return await send(text);},documents(){section='documents';showView('company');render();}};
 }

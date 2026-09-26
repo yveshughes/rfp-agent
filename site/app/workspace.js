@@ -1,7 +1,7 @@
 import {createOpportunityFeed} from './opportunities.js';
 import {createDiscussion} from './discuss.js';
-import {createRFPDetail} from './rfp-detail.js';
-import {createCompanyProfile} from './company.js';
+import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
+import {createCompanyProfile} from './company.js?v=navigation-1';
 import {createBillyMotion,setupMotionPreview} from './billy-motion.js';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -10,6 +10,27 @@ const API = local && location.port === '8080' ? 'http://127.0.0.1:8081' : '';
 let state = null, offset = 0, sourceTotal = 0, currentView = 'chats', lastEvent = 0, initialized = false, frameURL = null, pendingFrame = false, searchTimer, pendingSearch = 0;
 let rfpRows=[], rfpStatuses=[], rfpSort='updated', rfpAscending=false, editingRFP=null, openingRFP=0;
 const views = {chats:'Chats',rfps:'RFPs',sources:'Sources',company:'Company Profile',artifacts:'Artifacts',settings:'Settings'};
+let navigationAtLoad=null, navigationInteractions=0;
+try{
+  const [path,query]=window.location.hash.slice(1).split('?'),parts=path.split('/').filter(Boolean);
+  if(parts.length)navigationAtLoad={view:parts[0],companySection:parts[0]==='company'?parts[1]:null,rfpList:parts[1],rfp:parts[0]==='rfps'?parts[2]:null,rfpTab:parts[3],panel:new URLSearchParams(query).get('panel')};
+}catch{}
+for(const event of ['pointerdown','keydown'])document.addEventListener(event,()=>navigationInteractions++,{capture:true});
+function rememberNavigation(){
+  const selected=s=>document.querySelector(s);
+  const saved={view:currentView,companySection:selected('[data-company-section][aria-selected="true"]')?.dataset.companySection,
+    rfpList:$('#pipeline-view').hidden?'all':'mine',rfp:$('#rfp-detail-page').hidden?null:(editingRFP||'new'),
+    rfpTab:selected('[data-rfp-tab][aria-selected="true"]')?.dataset.rfpTab,
+    panel:selected('[data-panel][aria-selected="true"]')?.dataset.panel};
+  const parts=[saved.view];
+  if(saved.view==='company')parts.push(saved.companySection||'company');
+  if(saved.view==='rfps'){parts.push(saved.rfpList);if(saved.rfp)parts.push(saved.rfp,saved.rfpTab||'files');}
+  const hash='#/'+parts.map(encodeURIComponent).join('/')+(saved.panel&&saved.panel!=='work'?'?panel='+saved.panel:'');
+  if(window.location.hash!==hash)history.replaceState(null,'',hash);
+}
+window.addEventListener('pagehide',rememberNavigation);
+document.addEventListener('click',()=>queueMicrotask(rememberNavigation));
+
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
@@ -34,6 +55,7 @@ async function api(path, data) {
   } finally {if(reading){documentRequests--;updateBillyMotion();}}
 }
 function showView(name) {
+  if(name!=='rfps')++openingRFP;
   currentView=name;discussion.view(name);
   Object.keys(views).forEach(view=>{ $('#view-'+view).hidden=view!==name; document.querySelector(`[data-view="${view}"]`).classList.toggle('selected',view===name); });
   $('#view-title').textContent=views[name];
@@ -128,18 +150,37 @@ await refresh();await companyProfile.load();await loadSources();setInterval(refr
 
 
 async function loadRFPs(){try{const data=await api('/rfps');rfpRows=data.rows;rfpStatuses=data.statuses;const filter=$('#rfp-status-filter'), selected=filter.value;filter.innerHTML='<option value="">All statuses</option>'+rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');filter.value=selected;if(!$('#rfp-status').options.length)$('#rfp-status').innerHTML=rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');renderRFPs();}catch(err){toast(err.message);}}
-function showPipeline(){$('#pipeline-view').hidden=false;$('#opportunity-feed').hidden=true;$('#pipeline-tab').classList.add('selected');$('#all-rfps-tab').classList.remove('selected');loadRFPs();}
+function showPipeline(){++openingRFP;rfpDetail.back();$('#pipeline-view').hidden=false;$('#opportunity-feed').hidden=true;$('#pipeline-tab').classList.add('selected');$('#all-rfps-tab').classList.remove('selected');loadRFPs();}
 function showAllOpportunities(){++openingRFP;rfpDetail.back();$('#pipeline-view').hidden=true;$('#opportunity-feed').hidden=false;$('#pipeline-tab').classList.remove('selected');$('#all-rfps-tab').classList.add('selected');opportunityFeed.load();}
 $('#all-rfps-tab').onclick=showAllOpportunities;
 $('#pipeline-tab').onclick=showPipeline;
 function renderRFPs(){const q=$('#rfp-search').value.toLowerCase(),status=$('#rfp-status-filter').value;const rows=rfpRows.filter(r=>(!status||r.status===status)&&(!q||[r.title,r.agency,r.notes].join(' ').toLowerCase().includes(q)));rows.sort((a,b)=>{const av=a[rfpSort],bv=b[rfpSort];if(rfpSort==='deadline'&&(!av||!bv))return av?-1:bv?1:0;const n=typeof av==='number'?av-bv:String(av).localeCompare(String(bv));return rfpAscending?n:-n;});$('#rfp-count').textContent=`${rows.length} of ${rfpRows.length} RFPs · Click a column to sort or an RFP to manage it.`;$('#rfp-rows').innerHTML=rows.map(r=>`<tr><td><button class="rfp-title-link" data-rfp="${r.id}">${esc(r.title)}</button></td><td>${esc(r.agency||'—')}</td><td><span class="badge ${r.status==='Closed — won'?'won':r.status==='Closed — lost'?'lost':''}">${esc(r.status)}</span></td><td>${esc(r.deadline||'—')}</td><td>${r.documents}</td><td>${esc(date(r.updated))}</td></tr>`).join('')||'<tr><td colspan="6">'+(rfpRows.length?'No matching RFPs. Try another search or status.':'Your pipeline is ready. Pursue an opportunity or add an RFP.')+'</td></tr>';document.querySelectorAll('[data-rfp]').forEach(btn=>btn.onclick=()=>openRFP(btn.dataset.rfp));document.querySelectorAll('[data-sort]').forEach(btn=>{const active=btn.dataset.sort===rfpSort;btn.parentElement.setAttribute('aria-sort',active?(rfpAscending?'ascending':'descending'):'none');btn.textContent=({title:'RFP',agency:'Agency',status:'Status',deadline:'Due',documents:'Files',updated:'Updated'})[btn.dataset.sort]+' '+(active?(rfpAscending?'↑':'↓'):'↕');});}
 $('#rfp-search').oninput=renderRFPs;$('#rfp-status-filter').onchange=renderRFPs;
 document.querySelectorAll('[data-sort]').forEach(btn=>btn.onclick=()=>{if(rfpSort===btn.dataset.sort)rfpAscending=!rfpAscending;else{rfpSort=btn.dataset.sort;rfpAscending=true;}renderRFPs();});
-async function openRFP(id,seed={}){const token=++openingRFP;await loadRFPs();if(token!==openingRFP)return;editingRFP=id;const r=rfpRows.find(x=>x.id===id)||seed;for(const key of ['title','agency','url','deadline','notes'])$('#rfp-'+key).value=r[key]||'';$('#rfp-status').value=r.status||'Researching';$('#rfp-save-status').textContent='';$('#rfp-originals').hidden=!id;$('#rfp-pdf-url').value=/\.pdf(?:[?#]|$)/i.test(r.url||'')?r.url:'';showView('rfps');renderRFPDocuments();await rfpDetail.open(r);$('#view-rfps').scrollTop=0;}
+async function openRFP(id,seed={},selectedTab='files',interaction=null){const token=++openingRFP;await loadRFPs();if(token!==openingRFP||(interaction!==null&&interaction!==navigationInteractions))return;editingRFP=id;const r=rfpRows.find(x=>x.id===id)||seed;for(const key of ['title','agency','url','deadline','notes'])$('#rfp-'+key).value=r[key]||'';$('#rfp-status').value=r.status||'Researching';$('#rfp-save-status').textContent='';$('#rfp-originals').hidden=!id;$('#rfp-pdf-url').value=/\.pdf(?:[?#]|$)/i.test(r.url||'')?r.url:'';showView('rfps');renderRFPDocuments();await rfpDetail.open(r,selectedTab);$('#view-rfps').scrollTop=0;rememberNavigation();}
 $('#add-rfp').onclick=()=>openRFP(null);$('#back-rfps').onclick=()=>{++openingRFP;rfpDetail.back();loadRFPs();};
-$('#rfp-form').onsubmit=async e=>{e.preventDefault();const payload={};for(const key of ['title','agency','url','status','deadline','notes'])payload[key]=$('#rfp-'+key).value.trim();const target=editingRFP, generation=openingRFP;$('#save-rfp').disabled=true;try{const r=await api('/rfps'+(target?'/'+target:''),payload);if(generation!==openingRFP)return;editingRFP=r.id;await loadRFPs();if(generation!==openingRFP)return;$('#rfp-status').value=r.status;$('#rfp-originals').hidden=false;await rfpDetail.open(r);if(generation!==openingRFP)return;$('#rfp-save-status').textContent='Saved to your workspace.';if(!$('#rfp-pdf-url').value&&/\.pdf(?:[?#]|$)/i.test(r.url))$('#rfp-pdf-url').value=r.url;renderRFPDocuments();}catch(err){toast(err.message);}finally{$('#save-rfp').disabled=false;}};
+$('#rfp-form').onsubmit=async e=>{e.preventDefault();const payload={};for(const key of ['title','agency','url','status','deadline','notes'])payload[key]=$('#rfp-'+key).value.trim();const target=editingRFP, generation=openingRFP;$('#save-rfp').disabled=true;try{const r=await api('/rfps'+(target?'/'+target:''),payload);if(generation!==openingRFP)return;editingRFP=r.id;await loadRFPs();if(generation!==openingRFP)return;$('#rfp-status').value=r.status;$('#rfp-originals').hidden=false;await rfpDetail.open(r);if(generation!==openingRFP)return;rememberNavigation();$('#rfp-save-status').textContent='Saved to your workspace.';if(!$('#rfp-pdf-url').value&&/\.pdf(?:[?#]|$)/i.test(r.url))$('#rfp-pdf-url').value=r.url;renderRFPDocuments();}catch(err){toast(err.message);}finally{$('#save-rfp').disabled=false;}};
 function renderRFPDocuments(){const docs=(state?.documents||[]).filter(d=>d.rfp_id===editingRFP);$('#rfp-documents').innerHTML=docs.map(d=>`<article class="document-card"><h4>${esc(d.name)}</h4><p>Saved ${esc(date(d.added))} · extracted pages ${d.first_page}–${d.last_page}${d.total_pages?` of ${d.total_pages}`:''}</p>${d.source_url?`<a href="${esc(d.source_url)}" target="_blank" rel="noopener">Source ↗</a>`:''}<div class="document-actions"><button data-document="${d.id}">Review extracted pages</button><a href="${API}/api/documents/${d.id}/pdf" target="_blank" rel="noopener">View original ↗</a><a href="${API}/api/documents/${d.id}/pdf?download=true">Download ↓</a></div></article>`).join('')||'<p class="muted">No originals saved for this RFP yet.</p>';bindDocuments();}
 async function saveRFPDocument(button,work){button.disabled=true;const label=button.textContent;button.textContent='Saving original…';try{const result=await work();await refresh();await loadRFPs();renderRFPDocuments();rfpDetail.filesChanged();toast(result.existing?'This original is already saved.':`Original saved. ${result.pages} pages extracted.`);}catch(err){toast(err.message);}finally{button.disabled=false;button.textContent=label;}}
 $('#rfp-download-form').onsubmit=e=>{e.preventDefault();saveRFPDocument($('#download-rfp-pdf'),()=>api('/rfps/'+editingRFP+'/documents/download',{url:$('#rfp-pdf-url').value.trim()}));};
 $('#rfp-upload-form').onsubmit=e=>{e.preventDefault();const file=$('#rfp-upload').files[0];if(!file)return;const data=new FormData();data.append('file',file);data.append('rfp_id',editingRFP);data.append('first_page',$('#rfp-first-page').value||'1');data.append('last_page',$('#rfp-last-page').value||'0');saveRFPDocument($('#upload-rfp-pdf'),()=>api('/documents',data));};
 await loadRFPs();
+
+async function restoreNavigation(){
+  const saved=navigationAtLoad;
+  if(!saved||!Object.hasOwn(views,saved.view)||navigationInteractions)return;
+  if(saved.rfpList==='mine')showPipeline();
+  if(saved.companySection)companyProfile.selectSection(saved.companySection);
+  if(['discuss','work','decisions'].includes(saved.panel))selectPanel(saved.panel);
+  showView(saved.view);
+  if(saved.view!=='rfps'||!saved.rfp)return;
+  if(saved.rfp==='new'){await openRFP(null);return;}
+  if(!/^[a-f0-9]{32}$/.test(saved.rfp))return;
+  const interaction=navigationInteractions;
+  try{
+    const rfp=rfpRows.find(r=>r.id===saved.rfp)||(await api(`/rfps/${saved.rfp}/workspace`)).rfp;
+    if(interaction!==navigationInteractions)return;
+    await openRFP(saved.rfp,rfp,saved.rfpTab,interaction);
+  }catch(error){toast('Could not reopen that RFP. Your RFP list is still available.');}
+}
+await restoreNavigation();

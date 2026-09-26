@@ -60,13 +60,13 @@ export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
     try{const result=await api(`/rfps/${target}/discussion/${targetTab}`,{text});noteDrafts.delete(targetKey);if(id===target){data.notes=result.notes;if(tab===targetTab){$('#rfp-discussion-input').value='';renderNotes();}}toast('Discussion note saved.');}catch(err){toast(err.message);}finally{savingNote=false;$('#rfp-note-send').disabled=false;$('#rfp-discussion-input').disabled=false;}
   };
   return {
-    async open(rfp){const token=++request;id=rfp.id||null;tab='files';data=null;
+    async open(rfp,selectedTab='files'){const token=++request;id=rfp.id||null;tab='files';data=null;
       $('#rfp-list-page').hidden=true;$('#rfp-detail-page').hidden=false;
       $('#rfp-page-title').textContent=rfp.title||'Add an RFP';$('#rfp-page-agency').textContent=rfp.agency||'YOUR RFP WORKSPACE';$('#rfp-page-meta').textContent=[rfp.status,rfp.deadline?`Due ${rfp.deadline}`:''].filter(Boolean).join(' · ');
       $('#rfp-metadata').open=!id;$('#rfp-work-tabs').hidden=!id;$('#rfp-work-panel').hidden=true;$('#rfp-overall-progress').hidden=!id;
       $('#rfp-work-tabs').innerHTML='<span class="muted">Loading response sections…</span>';
       if(!id)return;
-      try{const result=await api(`/rfps/${id}/workspace`);if(token!==request)return;data=result;$('#rfp-work-panel').hidden=false;render();}catch(err){if(token===request)$('#rfp-work-tabs').innerHTML='<span class="muted">Could not load sections. Reopen the RFP to retry.</span>';toast(err.message);}
+      try{const result=await api(`/rfps/${id}/workspace`);if(token!==request)return;data=result;tab=data.sections.some(s=>s.id===selectedTab)?selectedTab:'files';$('#rfp-work-panel').hidden=false;render();}catch(err){if(token===request)$('#rfp-work-tabs').innerHTML='<span class="muted">Could not load sections. Reopen the RFP to retry.</span>';toast(err.message);}
     },
     back(){++request;$('#rfp-detail-page').hidden=true;$('#rfp-list-page').hidden=false;},
     filesChanged(){renderTabs();},
