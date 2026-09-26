@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolveBillyMotion,createBillyMotion} from '../site/app/billy-motion.js';
 const ready={browser:{controller:'billy',busy:false,error:null,pending:null},document_jobs:0};
-test('activity maps to idle, research and document motions',()=>{
-  assert.equal(resolveBillyMotion(ready).motion,'idle');
+test('activity wakes Billy from snoozing for research and documents',()=>{
+  assert.equal(resolveBillyMotion(ready).motion,'snoozing');
   assert.equal(resolveBillyMotion({...ready,browser:{...ready.browser,busy:true,status:'Reading the page'}}).motion,'researching');
   assert.equal(resolveBillyMotion({...ready,document_jobs:1}).motion,'reading');
   assert.equal(resolveBillyMotion(ready,{documentRequests:1}).motion,'reading');
@@ -29,12 +29,12 @@ test('explicit pause survives activity, visibility and OS preference changes',()
   const reduced={matches:false,addEventListener:(name,fn)=>listeners.motion=fn};
   const video={play:()=>{plays++;return Promise.resolve();},pause:()=>{},load:()=>{},setAttribute:()=>{},addEventListener:()=>{}};
   const button={setAttribute:()=>{}};
-  const nodes={'#billy-video':video,'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
+  const nodes={'#billy-video':video,'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
   try{
     globalThis.document={hidden:false,querySelector:s=>nodes[s],addEventListener:(name,fn)=>listeners[name]=fn};
     globalThis.localStorage={getItem:()=>preference,setItem:(_,value)=>{preference=value;}};
     globalThis.matchMedia=()=>reduced;
-    const motion=createBillyMotion();motion.update(ready);
+    const motion=createBillyMotion();motion.update({...ready,browser:{...ready.browser,busy:true}});
     assert.ok(plays>0);
     button.onclick();assert.equal(preference,'off');const before=plays;
     motion.update({...ready,document_jobs:1});
@@ -42,5 +42,13 @@ test('explicit pause survives activity, visibility and OS preference changes',()
     document.hidden=true;listeners.visibilitychange();document.hidden=false;listeners.visibilitychange();
     assert.equal(plays,before);
     assert.equal(nodes['.billy-profile'].dataset.motion,'off');
+    motion.update(ready);assert.equal(nodes['.billy-profile'].dataset.state,'snoozing');
+    assert.equal(nodes['.billy-profile'].dataset.animate,'paused');
+    assert.equal(nodes['#billy-snooze'].hidden,false);
+    assert.equal(video.hidden,true);
+    motion.update({...ready,browser:{...ready.browser,busy:true}});
+    assert.equal(nodes['#billy-snooze'].hidden,true);
+    assert.equal(video.hidden,false);
+    assert.equal(plays,before);
   }finally{for(const [key,value] of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });

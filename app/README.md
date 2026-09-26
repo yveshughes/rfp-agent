@@ -62,7 +62,7 @@ Sources has its own sidebar section, all 6,222 source records, search/state filt
 
 ## Billy’s activity animations
 
-Four consistent Higgsfield/Seedance 2.0 loops replace the generic avatar loop: idle, researching, reading and waiting for input. Pending decisions take priority, then human browser control, document operations, browser research and idle. A browser error uses the waiting pose with a Needs your attention label; disconnection pauses the idle pose. Upload/download operations publish an active document count in `/api/state`, cleared even on failure. The animation does not start jobs or infer success from an RFP status.
+Four consistent Higgsfield/Seedance 2.0 loops provide idle, researching, reading and waiting for input poses. With no active work, Billy enters Snoozing: an existing closed-eye frame with lightweight CSS breathing and floating Zs, requiring no additional generation or model call. Pending decisions take priority, then human browser control, document operations, browser research and snoozing. A browser error uses the waiting pose with a Needs your attention label; disconnection pauses the idle pose. Upload/download operations publish an active document count in `/api/state`, cleared even on failure. The animation does not start jobs or infer success from an RFP status.
 
 Settings includes a clearly separate motion preview. The avatar pause preference persists locally, respects reduced-motion defaults, and playback pauses while the page is hidden. Videos are muted, served from the app’s own assets, and only change sources when the activity changes.
 

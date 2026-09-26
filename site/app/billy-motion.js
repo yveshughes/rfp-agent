@@ -1,4 +1,5 @@
 export const motions = {
+  snoozing: {name:'Snoozing', description:'A little rest between tasks. Billy wakes when there’s work to do.'},
   idle: {name:'Idle', description:'Relaxed and ready for the next task.'},
   researching: {name:'Researching', description:'Scanning a source and working at the keyboard.'},
   reading: {name:'Reading', description:'Reviewing the pages of a document.'},
@@ -14,12 +15,13 @@ export function resolveBillyMotion(state, {connected=true, documentRequests=0}={
   if(documentRequests>0 || state.document_jobs>0) return {motion:'reading',label:'Reading and saving a document',tone:'working'};
   if(browser.busy) return {motion:'researching',label:browser.status || 'Researching a source',tone:'working'};
   if(browser.error) return {motion:'waiting',label:'Needs your attention',tone:'attention'};
-  return {motion:'idle',label:'Ready for the next task',tone:'ready'};
+  return {motion:'snoozing',label:'All quiet. Ready when you are.',tone:'resting'};
 }
 
 export function createBillyMotion() {
   const video=document.querySelector('#billy-video');
   const profile=document.querySelector('.billy-profile');
+  const sleeper=document.querySelector('#billy-snooze');
   const button=document.querySelector('#billy-motion');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let preference;
@@ -28,7 +30,8 @@ export function createBillyMotion() {
   let current=null, tone='offline';
   const sync=()=>{
     const playing=enabled && !document.hidden && tone!=='offline';
-    if(playing) video.play().catch(()=>{}); else video.pause();
+    if(playing && current!=='snoozing') video.play().catch(()=>{}); else video.pause();
+    profile.dataset.animate=playing?'running':'paused';
     button.textContent=enabled?'Ⅱ':'▷';
     button.setAttribute('aria-label',enabled?'Pause Billy animation':'Play Billy animation');
     button.setAttribute('aria-pressed',String(enabled));
@@ -51,10 +54,14 @@ export function createBillyMotion() {
       if(current!==resolved.motion){
         current=resolved.motion;
         delete profile.dataset.mediaError;
+        const asleep=current==='snoozing';
+        sleeper.hidden=!asleep;video.hidden=asleep;
+        if(!asleep){
         video.poster=`/assets/billy/${current}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
         video.src=`/assets/billy/${current}.mp4`;
         video.load();
+        }
       }
       sync();
     }
@@ -64,15 +71,31 @@ export function createBillyMotion() {
 export function setupMotionPreview() {
   const dialog=document.querySelector('#billy-preview-dialog');
   const video=document.querySelector('#billy-preview-video');
+  const stage=document.querySelector('#billy-preview-stage');
+  const sleeper=document.querySelector('#billy-preview-snooze');
+  const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+  let enabled=!reduced.matches;
+  const toggle=document.querySelector('#snooze-preview-motion');
+  const sync=()=>{
+    stage.dataset.animate=enabled&&!document.hidden?'running':'paused';
+    toggle.textContent=enabled?'Pause breathing':'Play breathing';
+    toggle.setAttribute('aria-pressed',String(enabled));
+  };
+  toggle.onclick=()=>{enabled=!enabled;sync();};
+  document.addEventListener('visibilitychange',sync);
   function select(name){
     document.querySelectorAll('[data-motion-preview]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.motionPreview===name)));
     document.querySelector('#billy-preview-description').textContent=motions[name].description;
+    const asleep=name==='snoozing';
+    stage.dataset.state=name;sleeper.hidden=!asleep;video.hidden=asleep;toggle.hidden=!asleep;
+    sync();
+    if(asleep){video.pause();return;}
     video.poster=`/assets/billy/${name}.jpg`;
     video.src=`/assets/billy/${name}.mp4`;
     video.load();
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches)video.play().catch(()=>{});
   }
-  document.querySelector('#preview-billy').onclick=()=>{dialog.showModal();select('idle');};
+  document.querySelector('#preview-billy').onclick=()=>{dialog.showModal();select('snoozing');};
   document.querySelector('#close-billy-preview').onclick=()=>dialog.close();
   document.querySelectorAll('[data-motion-preview]').forEach(btn=>btn.onclick=()=>select(btn.dataset.motionPreview));
   dialog.addEventListener('close',()=>{video.pause();video.removeAttribute('src');video.load();});
