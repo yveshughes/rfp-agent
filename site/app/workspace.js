@@ -1,3 +1,4 @@
+import {createDiscussion} from './discuss.js';
 import {createRFPDetail} from './rfp-detail.js';
 import {createCompanyProfile} from './company.js';
 import {createBillyMotion,setupMotionPreview} from './billy-motion.js';
@@ -11,11 +12,12 @@ const views = {chats:'Chats',rfps:'RFPs',sources:'Sources',company:'Company Prof
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
-let documentRequests=0, workspaceConnected=false;
-const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests});
+let documentRequests=0, workspaceConnected=false, discussionState=null;
+const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState});
 setupMotionPreview();
-const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[]});
-const companyProfile=createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState:()=>state});
+const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
+const companyProfile=createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
+const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
@@ -30,7 +32,7 @@ async function api(path, data) {
   } finally {if(reading){documentRequests--;updateBillyMotion();}}
 }
 function showView(name) {
-  currentView=name;
+  currentView=name;discussion.view(name);
   Object.keys(views).forEach(view=>{ $('#view-'+view).hidden=view!==name; document.querySelector(`[data-view="${view}"]`).classList.toggle('selected',view===name); });
   $('#view-title').textContent=views[name];
   $('#profile-progress').hidden=name!=='company';
@@ -42,7 +44,7 @@ function showView(name) {
 }
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
 $('#collapse-nav').onclick=()=>{const collapsed=$('#workspace').classList.toggle('nav-collapsed');$('#collapse-nav').setAttribute('aria-label',collapsed?'Expand navigation':'Collapse navigation');};
-function selectPanel(name){document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));$('#panel-work').hidden=name!=='work';$('#panel-decisions').hidden=name!=='decisions';}
+function selectPanel(name){document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
 document.querySelectorAll('[data-panel]').forEach(button=>button.onclick=()=>selectPanel(button.dataset.panel));
 function addMessage(text, user=false, buttons=[]) {
   $('#welcome').hidden=true;

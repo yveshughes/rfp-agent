@@ -1,4 +1,4 @@
-export function createRFPDetail({api,esc,toast,getDocuments}) {
+export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
   const $=s=>document.querySelector(s);
   let id=null, tab='files', data=null, request=0, saving=false, savingNote=false;
   const drafts=new Map(), noteDrafts=new Map();
@@ -53,7 +53,8 @@ export function createRFPDetail({api,esc,toast,getDocuments}) {
     $('#rfp-discussion-notes').innerHTML=notes.map(n=>`<article class="rfp-note"><small>You · ${new Date(n.at*1000).toLocaleString()}</small><p>${esc(n.text)}</p>${tab!=='files'?`<button type="button" data-note-draft="${n.id}">Add to response draft ↗</button>`:''}</article>`).join('')||'<p class="muted">No discussion notes for this section yet.</p>';
     document.querySelectorAll('[data-note-draft]').forEach(b=>b.onclick=()=>{if(saving){toast('Wait for the section to finish saving.');return;}const n=notes.find(n=>String(n.id)===b.dataset.noteDraft), d=draft();d.body=[d.body,n.text].filter(Boolean).join('\n\n');$('#response-body').value=d.body;$('#response-save-state').textContent='Unsaved changes';toast('Added to your draft. Save the section to keep it.');});
   }
-  $('#rfp-discuss-text').onclick=()=>{$('#rfp-discussion').hidden=!$('#rfp-discussion').hidden;if(!$('#rfp-discussion').hidden)$('#rfp-discussion-input').focus();};
+  $('#rfp-discuss-text').onclick=()=>openDiscussion({rfp_id:id,section:tab},`${data?.rfp.title||'RFP'} · ${part()?.title||'Files'}`);
+  $('#rfp-show-notes').onclick=()=>{$('#rfp-discussion').hidden=!$('#rfp-discussion').hidden;if(!$('#rfp-discussion').hidden)$('#rfp-discussion-input').focus();};
   $('#rfp-discussion-input').oninput=e=>noteDrafts.set(key(),e.target.value);
   $('#rfp-discussion-form').onsubmit=async e=>{e.preventDefault();if(!id||!data||savingNote)return;const target=id,targetTab=tab,targetKey=key(),text=$('#rfp-discussion-input').value;if(!text.trim())return;savingNote=true;$('#rfp-note-send').disabled=true;$('#rfp-discussion-input').disabled=true;
     try{const result=await api(`/rfps/${target}/discussion/${targetTab}`,{text});noteDrafts.delete(targetKey);if(id===target){data.notes=result.notes;if(tab===targetTab){$('#rfp-discussion-input').value='';renderNotes();}}toast('Discussion note saved.');}catch(err){toast(err.message);}finally{savingNote=false;$('#rfp-note-send').disabled=false;$('#rfp-discussion-input').disabled=false;}
@@ -69,5 +70,6 @@ export function createRFPDetail({api,esc,toast,getDocuments}) {
     },
     back(){++request;$('#rfp-detail-page').hidden=true;$('#rfp-list-page').hidden=false;},
     filesChanged(){renderTabs();},
+    async reloadNotes(){if(!id||!data)return;const target=id;try{const latest=await api(`/rfps/${id}/workspace`);if(id===target){data.notes=latest.notes;renderNotes();}}catch(e){toast(e.message);}},
   };
 }

@@ -512,4 +512,7 @@ company_profile, company_chat, company_evidence, company_task = register_company
 from app.rfp_workspace import register_rfp_workspace
 rfp_workspace, save_response_section, add_response_note = register_rfp_workspace(app, db, require_rfp, event)
 
+from app.discussion import register_discussion
+discuss, discussion_config, transcribe = register_discussion(app, db, event, company_profile, company_chat, require_rfp)
+
 app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')

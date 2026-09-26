@@ -52,3 +52,10 @@ test('explicit pause survives activity, visibility and OS preference changes',()
     assert.equal(plays,before);
   }finally{for(const [key,value] of Object.entries(originals)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });
+
+test('discussion wakes Billy and submission decisions still take priority',()=>{
+  assert.equal(resolveBillyMotion(ready,{discussionState:'listening'}).motion,'discussing');
+  assert.equal(resolveBillyMotion(ready,{discussionState:'listening'}).label,'Listening to you…');
+  assert.equal(resolveBillyMotion({...ready,browser:{pending:{id:'1'}}},{discussionState:'listening'}).motion,'waiting');
+  assert.equal(resolveBillyMotion(ready,{discussionState:null}).motion,'snoozing');
+});

@@ -18,10 +18,31 @@ SECTIONS = [
 SCHEMA = [{'id':s,'name':n,'description':d,'fields':[{'id':f'{s}.{k}','label':label} for k,label in fields]} for s,n,d,fields in SECTIONS]
 FIELDS = {f['id']:f['label'] for s in SCHEMA for f in s['fields']}
 
+def stated_limit(text):
+    """Only one explicit, unambiguous dollar amount; do not equate limit bases."""
+    matches=list(re.finditer(r'(?<![\w.])\$?\s*(\d[\d,]*(?:\.\d+)?)\s*(million|thousand|m\b|k\b)?', text, re.I))
+    values=[]
+    for m in matches:
+        if not m.group(2) and '$' not in m.group(): continue
+        n=float(m.group(1).replace(',','')) * ({'m':1e6,'million':1e6,'k':1e3,'thousand':1e3}.get((m.group(2) or '').lower(),1))
+        if n>0: values.append(n)
+    return values[0] if len(values)==1 else None
+
+def insurance_details(text):
+    # Questions, uncertain answers and hypothetical purchases are not current policies.
+    if re.search(r'\?|\b(if|would|could|should|might|maybe|not sure|unsure|need|want|requires?|requirements?|rfp|used to|previous|formerly|deductible|premium|cost|quote|excess|umbrella|workers|professional)\b|\b(?:don.t|do not) have\b',text,re.I): return {}
+    if not re.search(r'\b(?:we|i)\s+(?:currently\s+)?(?:have|carry|hold)|\bour\s+(?:policy|coverage|insurance)|\binsured\b',text,re.I): return {}
+    details={}
+    amount=stated_limit(text)
+    if amount: details['insurance.limits']=f'${amount:,.0f} reported limit; occurrence / aggregate basis not yet confirmed'
+    if re.search(r'\bHartford\b',text,re.I): details['insurance.insurer']='The Hartford (reported by you)'
+    return details
+
 class ProfileAnswer(BaseModel):
     field: str
     text: str = Field(max_length=6000)
     action: str = 'answer'
+    conversation: str = Field(default='',max_length=160)
 
 class ProfileEvidence(BaseModel):
     field: str
@@ -72,7 +93,10 @@ def register_company(app, db, event):
         if req.action not in ('answer','ask','insurance_example','edit'): raise HTTPException(400,'Unknown conversation action.')
         with db() as c:
             c.execute('BEGIN IMMEDIATE')
-            row=c.execute('SELECT stage FROM company_dialogue WHERE field=?',(req.field,)).fetchone()
+            facts_before=[tuple(r) for r in c.execute('SELECT * FROM company_facts ORDER BY field')]
+            tasks_before=c.execute('SELECT COUNT(*) FROM company_tasks').fetchone()[0]
+            dialogue_key=req.field+('@'+req.conversation if req.conversation else '')
+            row=c.execute('SELECT stage FROM company_dialogue WHERE field=?',(dialogue_key,)).fetchone()
             stage=row['stage'] if row else ''
             if req.action=='edit':
                 previous=c.execute('SELECT value FROM company_facts WHERE field=?',(req.field,)).fetchone()
@@ -83,11 +107,13 @@ def register_company(app, db, event):
                 message(c,req.field,'user',f'Direct edit: {text}' if text else 'Cleared this company detail.')
                 reply='Saved your edit.' if text else 'Cleared this detail.'
                 stage=''
+                prefix=req.field+'@'
+                c.execute('DELETE FROM company_dialogue WHERE field=? OR substr(field,1,?)=?',(req.field,len(prefix),prefix))
             elif req.action=='insurance_example':
                 if req.field!='insurance.coverage': raise HTTPException(400,'Choose insurance coverage for this example.')
                 message(c,req.field,'user','Walk me through the $5M liability insurance example.')
                 reply='Do you have $5M in general liability insurance? This is an example requirement; I’ll need the actual RFP wording and policy documents to assess a match.'
-                stage='coverage_answer'
+                stage='coverage_answer_example'
             elif req.action=='ask':
                 message(c,req.field,'user',f'Let’s review {FIELDS[req.field].lower()}.')
                 reply=('Do you have general liability insurance? Tell me yes, no, or not sure. We’ll check the exact limits and dates against the RFP.' if req.field=='insurance.coverage' else f'What should I record for {FIELDS[req.field].lower()}? You can describe it in your own words. I’ll save it as information you’ve provided, with supporting documents added separately.')
@@ -100,7 +126,11 @@ def register_company(app, db, event):
                 no=normalized in ('no','no thanks','not now')
                 unsure=bool(re.search(r"\b(not sure|unsure|uncertain|don't know|do not know)\b",normalized))
                 coverage_no=not unsure and bool(re.search(r"^(no\b|nope\b)|\b(don't have|do not have|without coverage|not insured|uninsured|no coverage)\b",normalized))
-                if stage=='research_offer':
+                question=bool('?' in text or re.match(r'^(does|do|can|could|would|should|what|how|why|is|are)\b',normalized))
+                hypothetical=req.field=='insurance.coverage' and bool(re.search(r'\b(if|would|could|might|maybe|need|want|requires?|requirements?|rfp|used to|previous|formerly)\b',normalized)) and not unsure
+                if question or hypothetical:
+                    reply='I haven’t changed your company facts. Tell me what coverage you currently have; put the RFP’s exact wording in the coverage requirement field so we can compare the two.' if req.field.startswith('insurance.') else 'I haven’t changed this detail. Tell me what you want recorded, or link a supporting document for review.'
+                elif stage.startswith('research_offer'):
                     if yes:
                         task(c,req.field,'research','Research liability insurance options & application requirements')
                         reply='Added to my to-do list: research liability insurance options and application requirements. It’s queued for follow-up. No application has been sent and no policy will be purchased without your approval.'
@@ -112,19 +142,31 @@ def register_company(app, db, event):
                         reply='Would you like me to add insurance research to my to-do list? Say “yes” or “not now.” Your coverage details haven’t changed.'
                 elif req.field=='insurance.coverage':
                     fact(c,req.field,text,'Gap reported' if coverage_no else 'Unknown' if unsure else 'Reported by you')
+                    details=insurance_details(text) if not unsure and not coverage_no else {}
+                    for key,value in details.items(): fact(c,key,value,'Reported by you')
+                    limit=stated_limit(text) if details else None
+                    requirement=c.execute("SELECT value FROM company_facts WHERE field='insurance.requirement'").fetchone()
+                    target=5e6 if stage=='coverage_answer_example' else stated_limit(requirement['value']) if requirement else None
                     if coverage_no:
                         reply='I’ve recorded that coverage is missing for this question. Would you like me to research policies and the steps to get an application started?'
                         stage='research_offer'
+                    elif limit and target and limit<target:
+                        source='the illustrative $5M example' if stage=='coverage_answer_example' else 'the requirement saved in your company profile'
+                        reply=f'I’ve saved your ${limit:,.0f} liability limit'+(' and The Hartford as your insurer' if 'insurance.insurer' in details else '')+f'. It is lower than the ${target:,.0f} in {source}. We still need to check the policy’s occurrence and aggregate terms. Should I add research into increasing your coverage to my to-do list?'
+                        stage='research_offer'
                     else:
                         task(c,req.field,'verify','Verify liability coverage, limits, dates & endorsements')
-                        reply='I’ve recorded your answer and queued a coverage verification task. Add your current certificate or policy under Documents, then link the relevant page here. A “yes” alone doesn’t confirm the limit, exclusions, or whether it meets the RFP.'
+                        reply=('I’ve saved your reported limit'+(' and The Hartford as your insurer' if 'insurance.insurer' in details else '')+' in your company profile. ' if details else 'I’ve recorded your answer. ')+'I’ve queued a coverage verification task. Add your certificate or policy under Documents so we can check the limit basis, dates, and actual RFP wording.'
                         stage=''
                 else:
                     fact(c,req.field,text,'Unknown' if unsure else 'Reported by you')
                     reply=f'Updated {FIELDS[req.field].lower()} in your company profile. It’s marked {"unknown" if unsure else "reported by you"}. You can link a supporting document when you have it.'
-            c.execute('INSERT OR REPLACE INTO company_dialogue VALUES (?,?)',(req.field,stage))
+            c.execute('INSERT OR REPLACE INTO company_dialogue VALUES (?,?)',(dialogue_key,stage))
             message(c,req.field,'billy',reply)
-        if req.action in ('answer','edit'): event('profile','Company profile updated',FIELDS[req.field])
+            facts_changed=facts_before!=[tuple(r) for r in c.execute('SELECT * FROM company_facts ORDER BY field')]
+            tasks_added=c.execute('SELECT COUNT(*) FROM company_tasks').fetchone()[0]>tasks_before
+        if facts_changed: event('profile','Company profile updated',FIELDS[req.field])
+        if tasks_added: event('profile','Company follow-up queued',FIELDS[req.field])
         return {'reply':reply, 'profile':await company_profile()}
 
     @app.post('/api/company/evidence')

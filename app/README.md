@@ -1,6 +1,6 @@
 # Billy workspace
 
-A single-owner app with a six-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup and scoped company-profile conversations in Chats are deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
+A single-owner app with a six-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup and guided company-profile updates are deterministic. Contextual discussion includes an optional Meta transcription/chat connection; semantic matching and proposal generation are separate integrations.
 
 ## Run on this Mac
 
@@ -87,3 +87,19 @@ Each tab summarizes its remaining saved checklist items and has a scoped text-no
 ## Workspace design convention
 
 Use the shared top bar for each primary page title. Do not repeat the navigation name in a large content heading, eyebrow, or introductory banner. Place relevant counts beside the top-bar title; begin the content with tabs, controls, or records. Specific record names (such as an RFP title) and meaningful subsection headings remain in the content area. Apply this convention to new pages as well as existing ones.
+
+## Discussing, voice, and actions
+
+The right panel has Discussing, Activity, and Decisions. “Discuss with Billy” on a company field or RFP section opens the contextual conversation in the main Chats area. The right sidebar contains saved learnings and follow-ups, with no message composer. Outcomes persist across turns and reopening the discussion. RFP messages are also saved as section notes. Guided insurance discussion can record a reported coverage statement, a single unambiguous dollar limit, and the Hartford insurer example. It distinguishes current statements from questions, hypothetical coverage, premiums, and deductibles. Occurrence/aggregate terms still need evidence. The $5M example is explicitly illustrative; other comparisons use the requirement saved in Company Profile. A research offer creates a queued task only after acceptance, and never changes or purchases a policy. Conversation stages are scoped per discussion while company facts are shared.
+
+Optional Meta integration uses `META_API_KEY` (or `MODEL_API_KEY`) from the **server environment only**. No key belongs in browser JavaScript or git. A service can load a root-owned, mode-600 environment file via a systemd `EnvironmentFile` drop-in; restart the service when it is idle. `BILLY_META_MODEL` defaults to `muse-spark-1.3` for read-only open-ended replies. Guided fact updates remain deterministic. The model receives the discussion, saved company facts, and selected RFP metadata/section; it has no external-action tools. A key is needed to exercise these provider calls end to end.
+
+Voice uses Meta `muse-voice-transcribe-1.0`, push-to-talk. The browser captures at most 60 seconds, resamples to mono 24 kHz PCM WAV, and sends it to the private backend, which forwards it to Meta. Raw audio is not written by Billy to disk; provider retention is governed by Meta. The transcript returns to an editable composer. Only pressing Send saves it and runs the same guided action flow as typed text. Leaving Chats, hiding the page, or ending the conversation stops recording. Switching between the right-side tabs does not move or interrupt the central conversation. Optional read-aloud uses the browser's speech synthesis voices, separate from Meta transcription. Microphone capture requires localhost or HTTPS. Missing credentials disable voice with a clear status; provider errors do not silently switch transcription services.
+
+Discussing currently uses Billy's existing working clip with an animated messaging bubble. It respects the pause control and reduced motion. A separate Higgsfield phone clip is pending generation access; no generated phone video is claimed here.
+
+### Voice provider decision
+
+Recommended next integration: **Gemini Live** for Billy’s natural back-and-forth conversation. It combines spoken replies, user interruptions, input/output transcripts, and tool calls. Muse Voice Transcribe is speech-to-text and needs separate reasoning and speech generation. The existing optional Meta push-to-talk adapter remains a transcription path; Gemini Live is a recommendation, not an already-connected service. Credentials and a live end-to-end test are still required.
+
+References: [Gemini Audio](https://deepmind.google/models/gemini-audio/), [Live API](https://ai.google.dev/gemini-api/docs/live-api), [Muse Voice Transcribe](https://dev.meta.ai/docs/speech-to-text).

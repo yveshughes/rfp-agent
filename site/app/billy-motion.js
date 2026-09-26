@@ -1,4 +1,5 @@
 export const motions = {
+  discussing: {name:'Discussing', description:'Billy is messaging with you, listening, and keeping track of the next steps.'},
   snoozing: {name:'Snoozing', description:'A little rest between tasks. Billy wakes when there’s work to do.'},
   idle: {name:'Idle', description:'Relaxed and ready for the next task.'},
   researching: {name:'Researching', description:'Scanning a source and working at the keyboard.'},
@@ -7,10 +8,11 @@ export const motions = {
 };
 
 // Visual state follows work, never a timer pretending to perform a task.
-export function resolveBillyMotion(state, {connected=true, documentRequests=0}={}) {
+export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null}={}) {
   if (!connected || !state) return {motion:'idle',label:'Workspace disconnected',tone:'offline'};
   const browser=state.browser || {};
   if(browser.pending) return {motion:'waiting',label:'Waiting for your decision',tone:'attention'};
+  if(discussionState) return {motion:'discussing',label:({listening:'Listening to you…',thinking:'Considering your answer…',speaking:'Talking it through…',ready:'Let’s work it through.'})[discussionState]||'Discussing with you',tone:'working'};
   if(browser.controller==='you') return {motion:'waiting',label:'You have the browser',tone:'handoff'};
   if(documentRequests>0 || state.document_jobs>0) return {motion:'reading',label:'Reading and saving a document',tone:'working'};
   if(browser.busy) return {motion:'researching',label:browser.status || 'Researching a source',tone:'working'};
@@ -57,9 +59,10 @@ export function createBillyMotion() {
         const asleep=current==='snoozing';
         sleeper.hidden=!asleep;video.hidden=asleep;
         if(!asleep){
-        video.poster=`/assets/billy/${current}.jpg`;
+        const asset=current==='discussing'?'researching':current;
+        video.poster=`/assets/billy/${asset}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
-        video.src=`/assets/billy/${current}.mp4`;
+        video.src=`/assets/billy/${asset}.mp4`;
         video.load();
         }
       }
@@ -90,8 +93,9 @@ export function setupMotionPreview() {
     stage.dataset.state=name;sleeper.hidden=!asleep;video.hidden=asleep;toggle.hidden=!asleep;
     sync();
     if(asleep){video.pause();return;}
-    video.poster=`/assets/billy/${name}.jpg`;
-    video.src=`/assets/billy/${name}.mp4`;
+    const asset=name==='discussing'?'researching':name;
+    video.poster=`/assets/billy/${asset}.jpg`;
+    video.src=`/assets/billy/${asset}.mp4`;
     video.load();
     if(!matchMedia('(prefers-reduced-motion: reduce)').matches)video.play().catch(()=>{});
   }
