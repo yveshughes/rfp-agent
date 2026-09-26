@@ -29,7 +29,7 @@ test('explicit pause survives activity, visibility and OS preference changes',()
   const reduced={matches:false,addEventListener:(name,fn)=>listeners.motion=fn};
   const video={play:()=>{plays++;return Promise.resolve();},pause:()=>{},load:()=>{},setAttribute:()=>{},addEventListener:()=>{}};
   const button={setAttribute:()=>{}};
-  const nodes={'#billy-video':video,'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
+  const nodes={'#billy-video':video,'#billy-phone':{hidden:true},'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
   try{
     globalThis.document={hidden:false,querySelector:s=>nodes[s],addEventListener:(name,fn)=>listeners[name]=fn};
     globalThis.localStorage={getItem:()=>preference,setItem:(_,value)=>{preference=value;}};
@@ -54,8 +54,14 @@ test('explicit pause survives activity, visibility and OS preference changes',()
 });
 
 test('discussion wakes Billy and submission decisions still take priority',()=>{
-  assert.equal(resolveBillyMotion(ready,{discussionState:'listening'}).motion,'discussing');
+  assert.equal(resolveBillyMotion(ready,{discussionState:'listening'}).motion,'voice');
   assert.equal(resolveBillyMotion(ready,{discussionState:'listening'}).label,'Listening to you…');
   assert.equal(resolveBillyMotion({...ready,browser:{pending:{id:'1'}}},{discussionState:'listening'}).motion,'waiting');
+  assert.equal(resolveBillyMotion(ready,{discussionState:null}).motion,'snoozing');
+});
+
+ test('corded phone is limited to actual voice activity',()=>{
+  for(const discussionState of ['listening','speaking','transcribing']) assert.equal(resolveBillyMotion(ready,{discussionState}).motion,'voice');
+  for(const discussionState of ['ready','thinking']) assert.equal(resolveBillyMotion(ready,{discussionState}).motion,'discussing');
   assert.equal(resolveBillyMotion(ready,{discussionState:null}).motion,'snoozing');
 });

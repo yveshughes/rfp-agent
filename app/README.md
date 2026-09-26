@@ -96,7 +96,7 @@ Optional Meta integration uses `META_API_KEY` (or `MODEL_API_KEY`) from the **se
 
 Voice uses Meta `muse-voice-transcribe-1.0`, push-to-talk. The browser captures at most 60 seconds, resamples to mono 24 kHz PCM WAV, and sends it to the private backend, which forwards it to Meta. Raw audio is not written by Billy to disk; provider retention is governed by Meta. The transcript returns to an editable composer. Only pressing Send saves it and runs the same guided action flow as typed text. Leaving Chats, hiding the page, or ending the conversation stops recording. Switching between the right-side tabs does not move or interrupt the central conversation. Optional read-aloud uses the browser's speech synthesis voices, separate from Meta transcription. Microphone capture requires localhost or HTTPS. Missing credentials disable voice with a clear status; provider errors do not silently switch transcription services.
 
-Discussing currently uses Billy's existing working clip with an animated messaging bubble. It respects the pause control and reduced motion. A separate Higgsfield phone clip is pending generation access; no generated phone video is claimed here.
+Text discussion uses Billy's working clip with a messaging bubble. Voice listening, transcription, and spoken replies use a dedicated generated corded-phone portrait with a gentle CSS breathing loop. Both respect pause and reduced-motion preferences. The phone pose is an animated still, not a generated video or lip sync. Preview it under Settings → Billy’s expressions → On the phone.
 
 ### Voice provider decision
 

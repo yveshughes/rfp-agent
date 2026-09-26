@@ -21,6 +21,12 @@
       "file": "reading.mp4",
       "poster": "reading.jpg",
       "sha256": "278da4e35e541334ae34949ecc6b01621d3bbca34f17d306bd8dbfd5247f95ef"
+    },
+    "voice": {
+      "file": "voice.png",
+      "generator": "Built-in image generation",
+      "animation": "CSS breathing loop; no generated video",
+      "sha256": "4bb7050176946551293faadf043f1402ee1af5109e4fbcf90b0ecb2222645ef4"
     }
   }
 }

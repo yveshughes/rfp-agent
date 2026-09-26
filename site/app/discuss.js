@@ -49,7 +49,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
   }
   async function stopRecording(discard=false){
     if(!recording)return;const captured=recording;recording=null;
-    busy=true;controls();motion(discard?'ready':'thinking');
+    busy=true;controls();motion(discard?'ready':'transcribing');
     const token=generation;
     try{const blob=await captured.stop(discard);if(discard)return;
       $('#discuss-status').textContent='Transcribing…';const form=new FormData();form.append('file',blob,'speech.wav');
