@@ -1,4 +1,4 @@
-import {createOpportunityFeed} from './opportunities.js';
+import {createOpportunityFeed} from './opportunities.js?v=source-count-1';
 import {createDiscussion} from './discuss.js';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=navigation-1';
