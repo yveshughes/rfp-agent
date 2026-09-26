@@ -1,3 +1,4 @@
+import {updateProfileCompletion} from './workspaces.js?v=profile-ring-1';
 // Company facts are captured in scoped conversations, with explicit evidence provenance.
 export function createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState,openDiscussion}) {
   const $=s=>document.querySelector(s);
@@ -8,6 +9,7 @@ export function createCompanyProfile({storageKey,api,esc,toast,showView,addMessa
   const getField=()=>profile?.sections.flatMap(s=>s.fields).find(f=>f.id===field);
   function render(){
     if(!profile)return;
+    updateProfileCompletion(profile);
     const count=Object.values(profile.facts).filter(f=>f.value).length;
     $('#profile-progress').textContent=`${count} ${count===1?'detail':'details'} recorded`;
     $('#company-sections').innerHTML=profile.sections.map(s=>`<button role="tab" aria-selected="${s.id===section}" aria-controls="company-section-body" data-company-section="${s.id}">${esc(s.name)}<span>${s.fields.filter(f=>profile.facts[f.id]?.value).length}/${s.fields.length}</span></button>`).join('')+`<button role="tab" aria-selected="${section==='documents'}" aria-controls="company-documents" data-company-section="documents">Documents <span>↗</span></button>`;

@@ -61,3 +61,18 @@ export async function connectWorkspace(origin, toast) {
   };
   return {id: selected, api: origin + '/w/' + encodeURIComponent(selected)};
 }
+
+// Completion means recorded company information across the full profile schema.
+export function updateProfileCompletion(profile) {
+  const fields = profile.sections.flatMap(section => section.fields);
+  const filled = fields.filter(field => {
+    const fact = profile.facts[field.id];
+    return String(fact?.value ?? '').trim() && fact.status !== 'Unknown';
+  }).length;
+  const percent = fields.length ? Math.round(filled / fields.length * 100) : 0;
+  const button = document.querySelector('#profile-shortcut');
+  document.querySelector('#profile-ring-value').setAttribute('stroke-dasharray', `${percent} 100`);
+  document.querySelector('#profile-ring-percent').textContent = `${percent}%`;
+  button.dataset.ready = 'true';
+  button.setAttribute('aria-label', `Complete your company profile · ${percent}% complete · ${filled} of ${fields.length} details recorded`);
+}

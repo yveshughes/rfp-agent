@@ -1,10 +1,10 @@
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
-import {connectWorkspace} from './workspaces.js?v=companies-1';
+import {connectWorkspace} from './workspaces.js?v=profile-ring-1';
 import {createAgentChat} from './agent-chat.js?v=completion-1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js?v=auto-panel-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=completion-1';
+import {createCompanyProfile} from './company.js?v=profile-ring-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=auto-panel-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -83,6 +83,7 @@ function showView(name) {
   if(name==='artifacts') renderArtifacts();
 }
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
+$('#profile-shortcut').onclick=()=>{$('#workspace-menu').hidden=true;$('#workspace-switcher').setAttribute('aria-expanded','false');showView('company');};
 $('#collapse-nav').onclick=()=>{const collapsed=$('#workspace').classList.toggle('nav-collapsed');$('#collapse-nav').setAttribute('aria-label',collapsed?'Expand navigation':'Collapse navigation');};
 function selectPanel(name){document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
 document.querySelectorAll('[data-panel]').forEach(button=>button.onclick=()=>selectPanel(button.dataset.panel));
