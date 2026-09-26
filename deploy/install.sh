@@ -13,3 +13,6 @@ ln -sfn /etc/nginx/sites-available/rfp-agent /etc/nginx/sites-enabled/default
 nginx -t
 systemctl enable nginx
 systemctl restart nginx
+if command -v ufw >/dev/null 2>&1 && ufw status | grep -q '^Status: active'; then
+    ufw allow 80/tcp comment 'RFP Agent public website'
+fi
