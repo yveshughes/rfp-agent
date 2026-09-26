@@ -1,6 +1,6 @@
 # Billy workspace
 
-A single-owner app with a six-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup in Chats is deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
+A single-owner app with a six-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup and scoped company-profile conversations in Chats are deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
 
 ## Run on this Mac
 
@@ -67,3 +67,11 @@ Four consistent Higgsfield/Seedance 2.0 loops provide idle, researching, reading
 Settings includes a clearly separate motion preview. The avatar pause preference persists locally, respects reduced-motion defaults, and playback pauses while the page is hidden. Videos are muted, served from the app’s own assets, and only change sources when the activity changes.
 
 Validate state precedence with `node --test tests/billy-motion.test.mjs` alongside the backend test suite.
+
+## Company knowledge and follow-ups
+
+Company Profile has a secondary section sidebar: Company, Registrations, Experience, Team, Insurance, Compliance, Pricing, References, and Documents. Existing PDF imports remain intact under Documents. `app/company.py` provides SQLite-backed facts, per-field conversation history, conversation stages, and deduplicated queued tasks. `/api/company`, `/api/company/chat`, `/api/company/evidence`, and `/api/company/tasks/{id}` use the existing private API protections.
+
+Facts are marked Reported by you, Unknown, Gap reported, or Evidence linked. Only an explicitly selected existing PDF and valid original page create an evidence link. Corrections clear previous citations. Task completion does not independently verify coverage. Main Chats can continue a scoped company conversation; its active field persists across reloads in session storage.
+
+The illustrative $5M insurance question offers research after a negative answer and queues research only after acceptance. Yes/unsure answers queue verification. Follow-ups appear in Billy’s activity panel; they do not execute automatically. Automatic extraction of policy details, independent policy verification, general model reasoning and voice are not implemented. No insurer is contacted or policy purchased by these endpoints.
