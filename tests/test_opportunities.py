@@ -29,6 +29,7 @@ class OpportunityTests(unittest.IsolatedAsyncioTestCase):
 
     def test_municode_listing_retains_all_categories_and_due_dates(self):
         html='<div class="view view-id-rfps"><table><tr><th>Title</th><th>Bid/RFP Closing Date</th></tr><tr><td><a href="/meals">Meal catering</a></td><td>10/01/2026 - 4:00pm</td><td>Open - accepting bids and proposals</td></tr><tr><td><a href="/equipment">Electric equipment</a></td><td>10/07/2026 - 2:00pm</td><td>Open - accepting bids and proposals</td></tr></table></div>'
+        html+='<table><tr><td><a href="/unrelated">Unrelated proposal tips</a></td><td>10/08/2026</td></tr></table>'
         items,following,known=Page(html,'https://example.com/rfps').listings()
         self.assertTrue(known);self.assertEqual(len(items),2)
         self.assertEqual(items[0]['deadline'],'2026-10-01')

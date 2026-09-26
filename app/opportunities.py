@@ -23,16 +23,19 @@ class Page(HTMLParser):
     def __init__(self, html, url):
         super().__init__(convert_charrefs=True)
         self.url=url; self.links=[]; self.rows=[]; self.parts=[]; self.main=[]
-        self.skip=0; self.main_depth=0; self.anchor=None; self.row=None; self.rfp_table=False
+        self.skip=0; self.main_depth=0; self.anchor=None; self.row=None; self.rfp_table=False; self.stack=[]
         self.feed(html)
         self.text=' '.join(self.main or self.parts)
     def handle_starttag(self, tag, attrs):
         attrs=dict(attrs)
-        if 'view-id-rfps' in attrs.get('class','').split(): self.rfp_table=True
+        rfp_container='view-id-rfps' in attrs.get('class','').split()
+        if rfp_container: self.rfp_table=True
+        if tag not in ('area','base','br','col','embed','hr','img','input','link','meta','param','source','track','wbr'):
+            self.stack.append((tag,rfp_container or bool(self.stack and self.stack[-1][1])))
         if tag in ('script','style','nav','header','footer'): self.skip+=1
         if tag=='main': self.main_depth+=1
         if self.skip: return
-        if tag=='tr': self.row={'text':[], 'links':[]}
+        if tag=='tr': self.row={'text':[], 'links':[], 'rfp':bool(self.stack and self.stack[-1][1])}
         if tag=='a' and attrs.get('href'):
             url=urljoin(self.url,attrs['href'])
             if urlsplit(url).scheme in ('https','http'):
@@ -44,6 +47,9 @@ class Page(HTMLParser):
         if self.row is not None: self.row['text'].append(text)
         if self.anchor is not None: self.anchor['parts'].append(text)
     def handle_endtag(self, tag):
+        for i in range(len(self.stack)-1,-1,-1):
+            if self.stack[i][0]==tag:
+                del self.stack[i:]; break
         if tag in ('script','style','nav','header','footer'): self.skip=max(0,self.skip-1)
         if tag=='main': self.main_depth=max(0,self.main_depth-1)
         if self.skip: return
@@ -60,6 +66,7 @@ class Page(HTMLParser):
         berkeley=urlsplit(self.url).hostname=='berkeleyca.gov' and path=='/doing-business/working-city/bid-proposal-opportunities'
         candidates=[]
         for row in self.rows:
+            if self.rfp_table and not row['rfp']: continue
             links=[l for l in row['links'] if l['title'] and canonical(l['url'])!=canonical(self.url)]
             if not links: continue
             first=links[0]
