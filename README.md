@@ -1,0 +1,41 @@
+# RFP Agent
+
+A concise product preview for an agent that helps proposal teams reuse previous responses, discover RFP sources, draft with evidence, and refine by voice.
+
+Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
+
+## Current status
+
+This repository contains the **landing page only**. The application, AI processing, voice editing, and NetBird integration are not implemented yet. The page illustrates the intended workflow; it is not an interactive application screenshot.
+
+The “Live Demo” link opens `/app/` in a new tab. That route explicitly says the demo is coming soon. Replace the link in `site/index.html` and its adjacent status note when the application is ready.
+
+The 6,222 figure is the size of the source directory collected for this project. It does not describe verified portals, active RFPs, or completed agent searches. The raw directory and research documents are not distributed in this repository.
+
+## Preview locally
+
+No build step or JavaScript dependencies are required:
+
+```sh
+python3 -m http.server 8080 --directory site
+```
+
+Open http://localhost:8080. Fonts are requested from Google Fonts, with system fallbacks.
+
+## Deploy on Vultr
+
+Use a small Ubuntu or Debian VM. Copy or clone this repository onto it and run:
+
+```sh
+sudo sh deploy/install.sh
+```
+
+The installer serves **only `site/`** through nginx. Repository files, planning materials, and credentials are never copied into the web root. Allow HTTP ingress for this public preview; configure HTTPS with your domain before adding application accounts or uploading documents. The eventual application can use a separate NetBird-protected service.
+
+## Repository boundaries
+
+The root `.gitignore` allows only `site/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
+
+## License
+
+MIT. No endorsement or affiliation with any example proposal owner is implied.
