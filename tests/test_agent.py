@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 os.environ.setdefault('BILLY_DATA_DIR',tempfile.mkdtemp(prefix='billy-agent-test-'))
 from app import server
-from app.agent import AgentAction,AgentTurn
+from app.agent import AgentAction,AgentTurn,InvalidAction,complete
 from fastapi import HTTPException
 
 class AgentTests(unittest.IsolatedAsyncioTestCase):
@@ -42,6 +42,37 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snap['run']['status'],'error')
         self.assertEqual(snap['run']['error'],'Model unavailable')
         self.assertEqual(snap['steps'],[])
+
+    async def test_invalid_action_retries_once_before_executing(self):
+        action=AgentAction(tool='ask',arguments={'message':'Upload a prior response?'})
+        with patch('app.agent.complete',side_effect=[InvalidAction({'prompt_tokens':10,'completion_tokens':5}),(action,'test-model',{'prompt_tokens':12,'completion_tokens':6})]) as provider:
+            await server.agent.message(AgentTurn(text='Find RFPs',request_id='format-retry'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'waiting')
+        self.assertEqual(len(snap['steps']),1)
+        self.assertEqual(provider.call_count,2)
+        with server.db() as c:
+            self.assertEqual(c.execute('SELECT COUNT(*) FROM agent_usage WHERE actual IS NOT NULL').fetchone()[0],2)
+
+    async def test_repeated_invalid_action_stops_without_tools(self):
+        with patch('app.agent.complete',side_effect=InvalidAction()) as provider:
+            await server.agent.message(AgentTurn(text='Find RFPs',request_id='format-fail'))
+            await server.agent.task
+        self.assertEqual(provider.call_count,2)
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'error')
+        self.assertEqual(snap['steps'],[])
+
+    async def test_native_tool_call_parsing_and_model_identity(self):
+        from unittest.mock import MagicMock
+        result={'model':'test-model','choices':[{'message':{'content':None,'tool_calls':[{'function':{'name':'billy_action','arguments':'{"tool":"company","arguments":{}}'}}]}}],'usage':{}}
+        response=MagicMock()
+        response.__enter__.return_value.read.side_effect=lambda _:json.dumps(result).encode()
+        with patch('app.agent.urllib.request.urlopen',return_value=response):
+            self.assertEqual(complete([{'role':'user','content':'Go'}])[0].tool,'company')
+            result['model']='unexpected-model'
+            with self.assertRaisesRegex(RuntimeError,'different model'):complete([{'role':'user','content':'Go'}])
 
     async def test_missing_key_blocks_without_creating_run(self):
         with patch.dict(os.environ,{'VULTR_SERVERLESS_INFERENCE_API_KEY':''}):

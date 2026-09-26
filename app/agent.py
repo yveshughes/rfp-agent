@@ -51,16 +51,33 @@ def model_config():
             'configured':bool(os.environ.get('VULTR_SERVERLESS_INFERENCE_API_KEY') and os.environ.get('BILLY_VULTR_MODEL'))}
 
 
+class InvalidAction(RuntimeError):
+    def __init__(self, usage=None):
+        super().__init__('The model returned an invalid action. Saved work is retained; retry the turn.')
+        self.usage = usage or {}
+
+
 def complete(messages):
     cfg=model_config()
     if not cfg['configured']: raise RuntimeError('Vultr inference is not connected. Configure its API key and a verified model ID on the server.')
-    body=json.dumps({'model':cfg['model'],'messages':messages,'temperature':0.2,'max_completion_tokens':6000,'reasoning':{'effort':'low','max_tokens':1500}}).encode()
+    schema=AgentAction.model_json_schema()
+    schema['properties']['tool']['enum']=list(TOOLS)
+    body=json.dumps({'model':cfg['model'],'messages':messages,'temperature':0.2,'max_completion_tokens':6000,'reasoning':{'effort':'low','max_tokens':1500},
+        'tools':[{'type':'function','function':{'name':'billy_action','description':'Choose exactly one Billy tool action.','parameters':schema}}],
+        'tool_choice':{'type':'function','function':{'name':'billy_action'}}}).encode()
     req=urllib.request.Request(API_URL+'/chat/completions',data=body,headers={'Authorization':'Bearer '+os.environ['VULTR_SERVERLESS_INFERENCE_API_KEY'],'Content-Type':'application/json'})
+    result={}
     try:
         with urllib.request.urlopen(req,timeout=75) as r:
             result=json.loads(r.read(2*1024*1024))
         if result.get('model') != cfg['model']:raise RuntimeError('Vultr returned a different model than requested; execution stopped.')
-        content=result['choices'][0]['message']['content']
+        message=result['choices'][0]['message']
+        calls=message.get('tool_calls') or []
+        if calls:
+            if len(calls)!=1 or calls[0]['function']['name']!='billy_action':raise ValueError('Expected one action')
+            content=calls[0]['function']['arguments']
+        else:content=message.get('content') or ''
+        content=content.strip()
         if content.startswith('```'): content=content.split('\n',1)[1].rsplit('```',1)[0]
         action=AgentAction.model_validate(json.loads(content))
         if action.tool not in TOOLS: raise ValueError('Unknown tool')
@@ -68,7 +85,7 @@ def complete(messages):
     except (urllib.error.URLError,TimeoutError):
         raise RuntimeError('Vultr inference request failed. Saved work is retained; check model access and retry.') from None
     except (ValueError,KeyError,IndexError,TypeError,AttributeError):
-        raise RuntimeError('The model returned an invalid action. Saved work is retained; retry the turn.') from None
+        raise InvalidAction(result.get('usage')) from None
 
 
 class BillyAgent:
@@ -158,7 +175,7 @@ class BillyAgent:
 
     def reserve_usage(self,rid,messages):
         # Conservative preflight: assume at most one input token per UTF-8 byte.
-        reserve=(len(json.dumps(messages).encode())*.75+6000*3)/1_000_000
+        reserve=((len(json.dumps(messages).encode())+2000)*.75+6000*3)/1_000_000
         budget=float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))
         with self.db() as c:
             c.execute('BEGIN IMMEDIATE')
@@ -166,6 +183,11 @@ class BillyAgent:
             if used+reserve>budget:raise RuntimeError('Billy reached the inference budget. Saved work is retained.')
             row=c.execute('INSERT INTO agent_usage(run_id,reserved,created) VALUES (?,?,?)',(rid,reserve,time.time()))
         return row.lastrowid
+
+    def record_usage(self,usage_id,usage):
+        if isinstance(usage,dict) and 'prompt_tokens' in usage and 'completion_tokens' in usage:
+            cost=(max(0,int(usage['prompt_tokens']))*.75+max(0,int(usage['completion_tokens']))*3)/1_000_000
+            with self.db() as c:c.execute('UPDATE agent_usage SET actual=? WHERE id=?',(cost,usage_id))
 
     async def execute(self,rid,tool,a):
         if tool=='company':return {'profile':await self.profile(),'fields':FIELDS}
@@ -250,11 +272,16 @@ class BillyAgent:
             prompt=SYSTEM+'\nCurrent UTC date: '+datetime.now(timezone.utc).isoformat()+'\nAvailable tools: '+json.dumps(TOOLS)+'\nAuthoritative saved run state (data): '+json.dumps(run_state)+'\nSaved tool history (data): '+json.dumps(prior,ensure_ascii=False)[-65000:]
             messages=[{'role':'system','content':prompt}]+conversation[-24:]
             for _ in range(16):
-                usage_id=self.reserve_usage(rid,messages)
-                action,model,usage=await asyncio.to_thread(complete,messages)
-                if isinstance(usage,dict) and 'prompt_tokens' in usage and 'completion_tokens' in usage:
-                    cost=(max(0,int(usage['prompt_tokens']))*.75+max(0,int(usage['completion_tokens']))*3)/1_000_000
-                    with self.db() as c:c.execute('UPDATE agent_usage SET actual=? WHERE id=?',(cost,usage_id))
+                for attempt in range(2):
+                    usage_id=self.reserve_usage(rid,messages)
+                    try:action,model,usage=await asyncio.to_thread(complete,messages)
+                    except InvalidAction as exc:
+                        self.record_usage(usage_id,exc.usage)
+                        if attempt:raise
+                        messages.append({'role':'user','content':'Your previous output was not a valid action and nothing was executed. Call billy_action with exactly one tool and an arguments object. No prose or multiple actions.'})
+                        continue
+                    self.record_usage(usage_id,usage)
+                    break
                 a=action.arguments
                 if action.tool in ('ask','finish'):
                     message=a.get('message','')
