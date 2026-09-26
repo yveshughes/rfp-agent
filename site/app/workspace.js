@@ -2,7 +2,7 @@ import {createAgentChat} from './agent-chat.js?v=1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=navigation-1';
+import {createCompanyProfile} from './company.js?v=agent-chat-2';
 import {createBillyMotion,setupMotionPreview} from './billy-motion.js?v=chat-presence-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

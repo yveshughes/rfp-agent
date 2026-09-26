@@ -106,6 +106,16 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         for tool in ('send_email','submit','shell'):
             with self.assertRaises(ValueError):await server.agent.execute('run',tool,{})
 
+    async def test_followup_requires_user_request_and_deduplicates(self):
+        with server.db() as c:
+            c.execute("INSERT INTO agent_messages(run_id,role,text,created) VALUES ('run','user','Please research coverage options.',1)")
+        args={'field':'insurance.coverage','title':'Research liability coverage options','quote':'Please research coverage options.'}
+        with self.assertRaises(ValueError):await server.agent.execute('run','queue_followup',{**args,'quote':'Buy a policy now.'})
+        first=await server.agent.execute('run','queue_followup',args)
+        again=await server.agent.execute('run','queue_followup',args)
+        self.assertEqual(first['id'],again['id'])
+        self.assertFalse(first['executed'])
+
     async def test_later_rfp_pages_block_analysis_until_read(self):
         rid=(await server.create_rfp(server.RFPInput(title='Long RFP')))['id']
         with server.db() as c:
@@ -118,6 +128,14 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):server.agent.require_rfp_read('run',rid)
         await server.agent.execute('run','read_document',{'document_id':'long-citation','start_page':9})
         server.agent.require_rfp_read('run',rid)
+
+    async def test_unread_prior_response_pages_block_drafting(self):
+        with server.db() as c:
+            c.execute("INSERT OR REPLACE INTO documents(id,name,first_page,last_page,total_pages,added,pages,rfp_id) VALUES ('prior-full','Prior response',32,40,72,1,?,NULL)",(json.dumps([{'page':i,'text':'Reference evidence.'} for i in range(32,41)]),))
+        await server.agent.execute('run','read_document',{'document_id':'prior-full','start_page':32,'count':8})
+        with self.assertRaisesRegex(ValueError,'starting page 40'):server.agent.require_imports_read('run')
+        await server.agent.execute('run','read_document',{'document_id':'prior-full','start_page':40})
+        server.agent.require_imports_read('run')
 
     async def test_budget_preflight_prevents_provider_call(self):
         with patch.dict(os.environ,{'BILLY_INFERENCE_BUDGET_USD':'0'}),patch('app.agent.complete') as provider:
