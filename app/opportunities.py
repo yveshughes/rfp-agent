@@ -8,7 +8,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from fastapi import HTTPException
 
-STOP = set('the a an and or of to in for with on by from is are be this that as at our your we you will shall must may have has it its can all not their they include including services service project projects proposal proposals request requirements company work experience technical provide providing preparation prepared public city county department bid bids rfp rfps qualified consultant consultants required support contract scope submission submit response responses following'.split())
+STOP = set('the a an and or of to in for with on by from is are be this that as at our your we you will shall must may have has it its can all not their they include including services service project projects proposal proposals request requirements company work based completed require qualifications current confirm confirmation documentation document documents detail details original page pages demo march september october january february april june july august november december year years experience technical provide providing preparation prepared public city county department bid bids rfp rfps qualified consultant consultants required support contract scope submission submit response responses following'.split())
 FIELDS = ('company.overview', 'experience.services', 'experience.sectors', 'experience.projects')
 
 def canonical(url):
@@ -23,11 +23,12 @@ class Page(HTMLParser):
     def __init__(self, html, url):
         super().__init__(convert_charrefs=True)
         self.url=url; self.links=[]; self.rows=[]; self.parts=[]; self.main=[]
-        self.skip=0; self.main_depth=0; self.anchor=None; self.row=None
+        self.skip=0; self.main_depth=0; self.anchor=None; self.row=None; self.rfp_table=False
         self.feed(html)
         self.text=' '.join(self.main or self.parts)
     def handle_starttag(self, tag, attrs):
         attrs=dict(attrs)
+        if 'view-id-rfps' in attrs.get('class','').split(): self.rfp_table=True
         if tag in ('script','style','nav','header','footer'): self.skip+=1
         if tag=='main': self.main_depth+=1
         if self.skip: return
@@ -63,9 +64,9 @@ class Page(HTMLParser):
             if not links: continue
             first=links[0]
             if berkeley and not urlsplit(first['url']).path.startswith(path+'/'): continue
-            if not berkeley and not re.search(r'\b(rfp|rfq|bid|solicitation|proposal)\b|\d{1,2}/\d{1,2}/\d{4}',row['text'],re.I): continue
+            if not berkeley and not self.rfp_table and not re.search(r'\b(rfp|rfq|bid|solicitation|proposal)\b|\d{1,2}/\d{1,2}/\d{4}',row['text'],re.I): continue
             dates=re.findall(r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',row['text'])
-            deadline=f'{dates[0][2]}-{int(dates[0][0]):02}-{int(dates[0][1]):02}' if berkeley and dates else ''
+            deadline=f'{dates[0][2]}-{int(dates[0][0]):02}-{int(dates[0][1]):02}' if (berkeley or self.rfp_table) and dates else ''
             candidates.append(dict(first,excerpt=row['text'],deadline=deadline))
         if not candidates and not berkeley:
             for link in self.links:
@@ -73,7 +74,7 @@ class Page(HTMLParser):
                     candidates.append(dict(link,excerpt=link['title'],deadline=''))
         unique={c['url']:c for c in candidates}
         next_pages=[l['url'] for l in self.links if ('next' in l['rel'].split() or re.fullmatch(r'(?:next(?: page)?\s*[›»→]?|[›»])',l['title'],re.I)) and urlsplit(l['url']).netloc==urlsplit(self.url).netloc]
-        return list(unique.values()),next_pages,berkeley
+        return list(unique.values()),next_pages,berkeley or self.rfp_table
 
 
 def rank(title, text, facts, reviewed):

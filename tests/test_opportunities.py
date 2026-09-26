@@ -27,6 +27,13 @@ class OpportunityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(following,[URL+'?page=1'])
         self.assertEqual(canonical(URL+'/#fragment'),URL)
 
+    def test_municode_listing_retains_all_categories_and_due_dates(self):
+        html='<div class="view view-id-rfps"><table><tr><th>Title</th><th>Bid/RFP Closing Date</th></tr><tr><td><a href="/meals">Meal catering</a></td><td>10/01/2026 - 4:00pm</td><td>Open - accepting bids and proposals</td></tr><tr><td><a href="/equipment">Electric equipment</a></td><td>10/07/2026 - 2:00pm</td><td>Open - accepting bids and proposals</td></tr></table></div>'
+        items,following,known=Page(html,'https://example.com/rfps').listings()
+        self.assertTrue(known);self.assertEqual(len(items),2)
+        self.assertEqual(items[0]['deadline'],'2026-10-01')
+        self.assertEqual(items[1]['deadline'],'2026-10-07')
+
     def test_no_profile_no_score_and_low_match_retained(self):
         self.assertIsNone(rank('Environmental review','CEQA',{},True)['score'])
         facts={'experience.services':{'value':'Environmental review CEQA NEPA groundwater'}}
