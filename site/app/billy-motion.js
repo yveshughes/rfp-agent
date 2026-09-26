@@ -9,17 +9,35 @@ export const motions = {
 };
 
 // Visual state follows work, never a timer pretending to perform a task.
-export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null, chatOpen=false}={}) {
+export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null, chatOpen=false, agentActivity=null}={}) {
   if (!connected || !state) return {motion:'idle',label:'Workspace disconnected',tone:'offline'};
   const browser=state.browser || {};
   if(browser.pending) return {motion:'waiting',label:'Waiting for your decision',tone:'attention'};
-  if(discussionState) return {motion:['listening','speaking','transcribing'].includes(discussionState)?'voice':'discussing',label:({listening:'Listening to you…',thinking:'Considering your answer…',speaking:'Talking it through…',transcribing:'Catching what you said…',ready:'Let’s work it through.'})[discussionState]||'Discussing with you',tone:'working'};
   if(browser.controller==='you') return {motion:'waiting',label:'You have the browser',tone:'handoff'};
   if(documentRequests>0 || state.document_jobs>0) return {motion:'reading',label:'Reading and saving a document',tone:'working'};
   if(browser.busy) return {motion:'researching',label:browser.status || 'Researching a source',tone:'working'};
+  if(agentActivity) return {motion:agentActivity,label:agentActivity==='reading'?'Reviewing document evidence':'Reviewing opportunities and sources',tone:'working'};
+  if(discussionState) return {motion:['listening','speaking','transcribing'].includes(discussionState)?'voice':'discussing',label:({listening:'Listening to you…',thinking:'Considering your answer…',speaking:'Talking it through…',transcribing:'Catching what you said…',ready:'Let’s work it through.'})[discussionState]||'Discussing with you',tone:'working'};
   if(browser.error) return {motion:'waiting',label:'Needs your attention',tone:'attention'};
   if(chatOpen) return {motion:'discussing',label:'Ready to talk it through with you.',tone:'working'};
   return {motion:'snoozing',label:'All quiet. Ready when you are.',tone:'resting'};
+}
+
+export function resolveAgentActivity(snapshot) {
+  if(snapshot?.run?.status!=='running')return null;
+  const step=snapshot.steps?.at(-1),user=snapshot.messages?.filter(m=>m.role==='user').at(-1);
+  if(!step || (user && step.created<user.created))return null;
+  if(['read_document','inspect_rfp'].includes(step.tool))return 'reading';
+  if(['open_source','opportunities'].includes(step.tool))return 'researching';
+  return null;
+}
+
+export function resolveBillyPanel(state, options={}) {
+  const motion=resolveBillyMotion(state,options);
+  if(options.connected!==false && state?.browser?.pending)return 'decisions';
+  if(['reading','researching'].includes(motion.motion) || (options.connected!==false && state?.browser?.controller==='you'))return 'work';
+  if(options.chatOpen || options.discussionState)return 'discuss';
+  return null;
 }
 
 export function createBillyMotion() {

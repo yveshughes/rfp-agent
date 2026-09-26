@@ -44,7 +44,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
     $('#discuss-input').value=drafts.get(key(context))||'';
     $('#discuss-context').textContent=label;$('#discuss-sidebar-context').textContent=label;$('#discuss-empty').hidden=true;$('#discuss-insights').hidden=false;$('#discuss-session').hidden=false;
     $('#chat-scroll').hidden=true;$('#chat-form').hidden=true;$('#company-chat-context').hidden=true;showView('chats');
-    selectPanel('discuss');motion('ready');configure();
+    motion('ready');configure();
     if(await turn('',action))$('#discuss-input').focus();
   }
   async function stopRecording(discard=false){

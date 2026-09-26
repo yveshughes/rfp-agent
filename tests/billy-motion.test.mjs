@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {resolveBillyMotion,createBillyMotion} from '../site/app/billy-motion.js';
+import {resolveBillyMotion,createBillyMotion,resolveBillyPanel,resolveAgentActivity} from '../site/app/billy-motion.js';
 const ready={browser:{controller:'billy',busy:false,error:null,pending:null},document_jobs:0};
 test('activity wakes Billy from snoozing for research and documents',()=>{
   assert.equal(resolveBillyMotion(ready).motion,'snoozing');
@@ -74,4 +74,33 @@ test('opening chat wakes Billy while real work and decisions retain priority',()
   assert.equal(resolveBillyMotion({...ready,browser:{pending:{id:'approval'}}},{chatOpen:true}).motion,'waiting');
   assert.equal(resolveBillyMotion({...ready,document_jobs:1},{chatOpen:true}).motion,'reading');
   assert.equal(resolveBillyMotion(ready,{chatOpen:true,connected:false}).tone,'offline');
+});
+
+
+test('chat follows Discussing, actual research overrides thinking, and completion returns to chat',()=>{
+  const chat={chatOpen:true,discussionState:'thinking'};
+  assert.equal(resolveBillyPanel(ready,chat),'discuss');
+  const browsing={...ready,browser:{...ready.browser,busy:true}};
+  assert.equal(resolveBillyPanel(browsing,chat),'work');
+  assert.equal(resolveBillyMotion(browsing,chat).motion,'researching');
+  assert.equal(resolveBillyPanel({...ready,document_jobs:1},chat),'work');
+  assert.equal(resolveBillyMotion({...ready,document_jobs:1},chat).motion,'reading');
+  assert.equal(resolveBillyPanel(ready,chat),'discuss');
+  assert.equal(resolveBillyPanel(ready,{chatOpen:false}),null);
+});
+
+test('agent document review selects Activity only during the current running turn',()=>{
+  const snapshot={run:{status:'running'},messages:[{role:'user',created:10}],steps:[{tool:'read_document',created:11}]};
+  assert.equal(resolveAgentActivity(snapshot),'reading');
+  assert.equal(resolveBillyPanel(ready,{chatOpen:true,discussionState:'thinking',agentActivity:resolveAgentActivity(snapshot)}),'work');
+  snapshot.run.status='waiting';assert.equal(resolveAgentActivity(snapshot),null);
+  snapshot.run.status='running';snapshot.messages.push({role:'user',created:12});assert.equal(resolveAgentActivity(snapshot),null);
+  snapshot.steps.push({tool:'open_source',created:13});assert.equal(resolveAgentActivity(snapshot),'researching');
+  snapshot.steps.push({tool:'save_section',created:14});assert.equal(resolveAgentActivity(snapshot),null);
+});
+
+test('approval and browser control remain accessible without stale disconnected activity',()=>{
+  assert.equal(resolveBillyPanel({...ready,browser:{...ready.browser,pending:{id:'approval'}}},{chatOpen:true}),'decisions');
+  assert.equal(resolveBillyPanel({...ready,browser:{...ready.browser,controller:'you'}},{chatOpen:true}),'work');
+  assert.equal(resolveBillyPanel({...ready,document_jobs:1},{chatOpen:true,connected:false}),'discuss');
 });

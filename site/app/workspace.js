@@ -1,9 +1,9 @@
-import {createAgentChat} from './agent-chat.js?v=pdf-1';
+import {createAgentChat} from './agent-chat.js?v=auto-panel-1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
-import {createDiscussion} from './discuss.js';
+import {createDiscussion} from './discuss.js?v=auto-panel-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=agent-chat-2';
-import {createBillyMotion,setupMotionPreview} from './billy-motion.js?v=chat-presence-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=auto-panel-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -35,14 +35,21 @@ document.addEventListener('click',()=>queueMicrotask(rememberNavigation));
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
-let documentRequests=0, workspaceConnected=false, discussionState=null, agentState=null;
-const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState:discussionState||agentState,chatOpen:currentView==='chats'});
+let documentRequests=0, workspaceConnected=false, discussionState=null, agentState=null, agentActivity=null, lastAutoPanel=null;
+const updateBillyMotion=(forcePanel=false)=>{
+  const options={connected:workspaceConnected,documentRequests,discussionState:discussionState||agentState,agentActivity,chatOpen:currentView==='chats'};
+  billyMotion.update(state,options);
+  const panel=resolveBillyPanel(state,options);
+  // Follow real transitions; a manual tab choice remains usable between them.
+  if(panel && (forcePanel || panel!==lastAutoPanel))selectPanel(panel);
+  lastAutoPanel=panel;
+};
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
 const companyProfile=createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
-const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:value=>{agentState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
@@ -58,7 +65,7 @@ async function api(path, data) {
 }
 function showView(name) {
   if(name!=='rfps')++openingRFP;
-  currentView=name;discussion.view(name);updateBillyMotion();
+  currentView=name;discussion.view(name);updateBillyMotion(true);
   Object.keys(views).forEach(view=>{ $('#view-'+view).hidden=view!==name; document.querySelector(`[data-view="${view}"]`).classList.toggle('selected',view===name); });
   $('#view-title').textContent=views[name];
   $('#profile-progress').hidden=name!=='company';
@@ -111,7 +118,7 @@ $('#prev-page').onclick=()=>{offset=Math.max(0,offset-30);loadSources();};$('#ne
 function rfpsTab(directory){if(directory){showView('sources');return;}showAllOpportunities();}
 async function startResearch(request,label){
   if(request.url && /\.pdf(?:[?#]|$)/i.test(request.url)){openRFP(null,{title:label,url:request.url});toast('Save this RFP, then download its original PDF below.');return;}
-  try{await api('/research',request);addMessage(`Review ${label}`,true);addMessage('Opening the source now. You can watch the page in my browser, or expand it to take over once it has loaded.');showView('chats');selectPanel('work');await refresh();}catch(err){toast(err.message);}
+  try{await api('/research',request);addMessage(`Review ${label}`,true);addMessage('Opening the source now. You can watch the page in my browser, or expand it to take over once it has loaded.');showView('chats');await refresh();}catch(err){toast(err.message);}
 }
 
 function renderDocuments(){const docs=(state?.documents||[]).filter(d=>!d.rfp_id);$('#documents').innerHTML=docs.map(d=>`<article class="document-card"><h3>${esc(d.name)}</h3><p>Original PDF pages ${d.first_page}–${d.last_page} · imported ${esc(date(d.added))}</p><button data-document="${d.id}">Review extracted pages ↗</button></article>`).join('');bindDocuments();}

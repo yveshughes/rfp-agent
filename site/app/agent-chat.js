@@ -1,3 +1,5 @@
+import {resolveAgentActivity} from './billy-motion.js?v=auto-panel-1';
+
 export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDocument,companyChatActive,resourceURL}) {
   const $=s=>document.querySelector(s);
   const host=document.createElement('div');host.id='agent-conversation';host.className='conversation';$('#chat-scroll').append(host);
@@ -5,7 +7,7 @@ export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDoc
   function render(){
     const {run,messages,steps,config}=snapshot;
     $('#chat-form small').textContent=config.configured?`Billy · ${config.provider} · ${run?.model||config.model}`:'Billy needs a Vultr inference connection before he can work.';
-    onState(run?.status==='running'?'thinking':null);
+    onState(run?.status==='running'?'thinking':null,resolveAgentActivity(snapshot));
     $('#chat-form button[type="submit"]').disabled=sending||run?.status==='running';
     const companyMode=companyChatActive();host.hidden=companyMode;
     if(companyMode){$('#conversation').hidden=false;return;}
