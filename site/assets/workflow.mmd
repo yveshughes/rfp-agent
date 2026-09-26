@@ -1,0 +1,23 @@
+flowchart TD
+    accTitle: RFP Agent planned workflow
+    accDescr: Prior proposals become cited evidence. RFP sources become requirements. A Vultr backend compares them and drafts a response with gaps flagged. Voice edits require approval. A human exports and submits.
+    P["Prior proposals"] --> E["Cited evidence"]
+    S["RFP sources"] --> F["RFP requirements"]
+    subgraph V["Vultr backend · planned"]
+      E --> C["Check fit + gaps"]
+      F --> C
+      C --> D["Draft response"]
+      D --> R["Human review"]
+      R --> Q["Propose edit + diff"]
+      Q -->|Apply edit · save version| R
+    end
+    R -->|Approve export| X["Export draft"]
+    X --> H["You submit"]
+    classDef input fill:#f5f4ee,stroke:#a8b69e,color:#172b29
+    classDef work fill:#e6ecdf,stroke:#8caa7c,color:#172b29
+    classDef human fill:#176349,stroke:#176349,color:#ffffff
+    classDef output fill:#fff6df,stroke:#c8ad6d,color:#172b29
+    class P,S input
+    class E,F,C,D,Q work
+    class R,H human
+    class X output

@@ -1,12 +1,12 @@
 # RFP Agent
 
-A concise product preview for an agent that helps proposal teams reuse previous responses, discover RFP sources, draft with evidence, and refine by voice.
+An always-on agent, working on your behalf to win RFP opportunities. This repository contains the product pitch and technical overview.
 
 Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
 
 ## Current status
 
-This repository contains the **landing page only**. The application, AI processing, voice editing, and NetBird integration are not implemented yet. The page illustrates the intended workflow; it is not an interactive application screenshot.
+This repository contains the **pitch page and technical overview only**. The application, AI processing, voice editing, and NetBird integration are not implemented yet. The page illustrates the intended workflow; it is not an interactive application screenshot.
 
 The “Live Demo” link opens `/app/` in a new tab. That route explicitly says the demo is coming soon. Replace the link in `site/index.html` and its adjacent status note when the application is ready.
 
@@ -14,13 +14,13 @@ The 6,222 figure is the size of the source directory collected for this project.
 
 ## Preview locally
 
-No build step or JavaScript dependencies are required:
+No build step or dependency installation is required:
 
 ```sh
 python3 -m http.server 8080 --directory site
 ```
 
-Open http://localhost:8080. Fonts are requested from Google Fonts, with system fallbacks.
+Open http://localhost:8080. The technical overview lives at `/technical/`. Fonts are requested from Google Fonts, with system fallbacks. The technical page loads pinned Mermaid 12.0.0 from jsDelivr and renders `site/assets/workflow.mmd`; the written workflow remains available if the diagram cannot load. The decorative hero video has a pause control and respects reduced-motion preferences.
 
 ## Deploy on Vultr
 
@@ -36,6 +36,6 @@ The installer serves **only `site/`** through nginx. Repository files, planning 
 
 The root `.gitignore` allows only `site/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
 
-## License
+## Assets and license
 
-MIT. No endorsement or affiliation with any example proposal owner is implied.
+Code: MIT. The decorative hero animation was generated with Higgsfield / Seedance 2.0 for this project and optimized for web playback. It is an illustration of the product vision, not evidence of an actual contract award. The GitHub mark comes from Primer Octicons; its MIT notice is included in `site/assets/github-LICENSE.txt`. No endorsement or affiliation with any example proposal owner is implied.

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Technical details — RFP Agent</title>
+  <meta name="description" content="The RFP Agent workflow, intended architecture, and current implementation status.">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="page">
+    <header>
+      <a href="/" class="brand" aria-label="RFP Agent home"><span class="brand-mark" aria-hidden="true">r<span>↗</span></span> RFP Agent</a>
+      <nav class="page-tabs" aria-label="Explore RFP Agent"><a href="/">The pitch</a><a href="/technical/" aria-current="page">Technical details</a></nav>
+      <a class="source" href="https://github.com/yveshughes/rfp-agent" target="_blank" rel="noopener noreferrer"><img class="github-icon" src="/assets/github.svg" width="18" height="18" alt="">View source <span aria-hidden="true">↗</span></a>
+    </header>
+    <main id="main" class="technical">
+      <section class="tech-intro">
+        <span class="eyebrow"><span class="dot"></span> UNDER THE HOOD</span>
+        <h1>A workflow with evidence.<br><em>A human in control.</em></h1>
+        <p class="lead">From a previous proposal to a tailored response, with sources, unresolved questions, and your approval at every important step.</p>
+        <div class="status-note"><strong>Where we are today</strong><p>The product preview is built. The application is in development. The workflow and architecture below describe the intended implementation.</p></div>
+      </section>
+      <section class="workflow-section" aria-labelledby="chart-title">
+        <div class="chart-header"><div><span class="number">THE END-TO-END WORKFLOW</span><h2 id="chart-title">From opportunity to a response you own.</h2></div><a class="text-link" href="/assets/workflow.mmd" target="_blank" rel="noopener noreferrer">Mermaid source ↗</a></div>
+        <p class="chart-summary">The agent prepares and revises. The owner approves and submits. Each version retains the evidence and open questions behind it.</p>
+        <div class="diagram-scroll" tabindex="0" role="region" aria-label="Workflow diagram; scroll horizontally on smaller screens"><div id="workflow-chart"></div><p id="chart-status" role="status">Loading workflow diagram…</p></div>
+        <p class="chart-key"><span><i class="key-agent"></i> Agent work</span><span><i class="key-human"></i> Human control</span><span><i class="key-output"></i> Deliverable</span><span>Planned implementation</span></p>
+      </section>
+      <section class="tech-section" aria-labelledby="workflow-title">
+        <div class="section-label"><span class="number">01 / THE WORKFLOW</span><h2 id="workflow-title">Find. Prepare. Review.</h2></div>
+        <ol class="steps">
+          <li><span>01</span><div><h3>Import your company’s experience</h3><p>Extract reusable evidence from previous responses. Keep each claim connected to its source document and page.</p></div></li>
+          <li><span>02</span><div><h3>Find relevant opportunities</h3><p>Browse sources by location and agency. Read the actual RFP, extract requirements, and compare them with the company’s evidence.</p></div></li>
+          <li><span>03</span><div><h3>Prepare an honest draft</h3><p>Use supported experience, cite it, and flag qualifications that still need confirmation. Missing evidence stays visible.</p></div></li>
+          <li><span>04</span><div><h3>Revise by voice. Approve the changes.</h3><p>Turn a spoken request into a proposed edit. Inspect the diff, apply or undo, and export a draft for human review and submission.</p></div></li>
+        </ol>
+      </section>
+      <section class="tech-section" aria-labelledby="architecture-title">
+        <div class="section-label"><span class="number">02 / THE ARCHITECTURE</span><h2 id="architecture-title">Built around Vultr.</h2><p>Planned for the Future of Work track, with NetBird for controlled access.</p></div>
+        <div class="architecture">
+          <div class="arch-row"><span class="tech-badge">VULTR</span><div><h3>The system of record and control</h3><p>A VM hosts the API, background jobs, saved evidence, proposal versions, and generated files. Work persists across sessions.</p></div></div>
+          <div class="arch-row"><span class="tech-badge">AI</span><div><h3>Reasoning with bounded tools</h3><p>The backend retrieves documents, compares requirements, and drafts responses. Vultr Serverless Inference is the preferred model provider, subject to validation.</p></div></div>
+          <div class="arch-row"><span class="tech-badge">NETBIRD</span><div><h3>Protected access to company knowledge</h3><p>The planned reverse proxy provides authenticated access without public inbound application ports on the app VM.</p></div></div>
+          <div class="arch-row"><span class="tech-badge">YOU</span><div><h3>Approval before submission</h3><p>The agent prepares the response. You confirm qualifications, approve edits, and decide what is submitted.</p></div></div>
+        </div>
+      </section>
+      <section class="judge-section" aria-labelledby="judges-title">
+        <span class="number">03 / WHAT MAKES THIS WORTH BUILDING</span>
+        <h2 id="judges-title">Useful autonomy. Inspectable work.</h2>
+        <div class="judge-grid">
+          <article><span class="judge-topic">EXECUTION</span><h3>A workflow that produces an artifact</h3><p>The intended agent fetches an RFP, extracts requirements, compares evidence, and produces an editable response. A saved run connects the input documents to the output version.</p><p class="proof"><strong>Proof to show:</strong> a real run, its source pages, and its generated draft.</p></article>
+          <article><span class="judge-topic">TRUST</span><h3>Knowing when the evidence is missing</h3><p>A prior proposal can establish relevant experience without proving every new qualification. Missing, dated, or unverified claims stay flagged for confirmation.</p><p class="proof"><strong>Proof to show:</strong> one supported claim beside one unresolved requirement.</p></article>
+          <article><span class="judge-topic">HUMAN INTERACTION</span><h3>Voice editing you can inspect and undo</h3><p>A spoken request proposes a change. The owner sees the diff and decides whether to apply it. Version history preserves earlier drafts.</p><p class="proof"><strong>Proof to show:</strong> speak → inspect → apply → undo, on a real response.</p></article>
+          <article><span class="judge-topic">VULTR</span><h3>The infrastructure does the work</h3><p>The planned Vultr backend owns orchestration, job state, company evidence, and output files. Modest CPU compute handles document jobs; model calls stay in the trusted backend.</p><p class="proof"><strong>Proof to show:</strong> the running VM, persisted results after refresh, and measured processing time.</p></article>
+          <article><span class="judge-topic">NETBIRD</span><h3>Private company knowledge deserves controlled access</h3><p>Authenticated reverse-proxy access is the planned NetBird integration. It has a practical purpose: giving a reviewer access while keeping inbound application ports closed on the app VM.</p><p class="proof"><strong>Proof to show:</strong> an authorized review session and the actual network configuration.</p></article>
+          <article><span class="judge-topic">BUSINESS IMPACT</span><h3>More capacity to pursue the right work</h3><p>The long-term vision is continuous opportunity monitoring and reusable company knowledge. The initial demo focuses on one complete response workflow; nationwide ranking and automatic submission are outside its scope.</p><p class="proof"><strong>Measure:</strong> evidence coverage, edits required, run time, and actual operating cost.</p></article>
+        </div>
+      </section>
+      <section class="tech-section" aria-labelledby="demo-title">
+        <div class="section-label"><span class="number">04 / THE DEMO PATH</span><h2 id="demo-title">A real opportunity.<br>A focused demo.</h2></div>
+        <div class="demo-details"><div class="source-stat"><strong>6,222</strong><span>source records collected</span></div><p>Our planned walkthrough narrows the directory to California, then Berkeley, and prepares a response using a previous public proposal as source material.</p><p class="detail-note">Source records are not verified portals or active opportunities. The hero animation illustrates the product vision; it does not depict an actual contract award.</p><a class="cta" href="/app/" target="_blank" rel="noopener noreferrer">Live Demo <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a><p class="cta-note">App in development · Opens a coming-soon page</p></div>
+      </section>
+    </main>
+    <footer><span>Built for the Vultr Agent Arena Hackathon.</span><span>Product preview · App in development</span><a href="https://github.com/yveshughes/rfp-agent" target="_blank" rel="noopener noreferrer">Open source <span aria-hidden="true">↗</span></a></footer>
+  </div>
+  <script type="module" src="/technical.js"></script>
+</body>
+</html>
