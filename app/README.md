@@ -59,3 +59,11 @@ This central VM storage survives restarts and is available to authorized clients
 ## Sources and watch allowance
 
 Sources has its own sidebar section, all 6,222 source records, search/state filters and a Watched only filter. Watch selections persist in SQLite. `BILLY_WATCH_LIMIT` sets the workspace allowance (default 10); the server enforces it transactionally, including repeated Watch requests. Unwatching frees a slot. This is a configurable entitlement mechanism, not a connected subscription or billing system. Watching saves intent only: scheduled polling, change detection and alerts are not connected yet. Manual source reads remain available independently.
+
+## Billy’s activity animations
+
+Four consistent Higgsfield/Seedance 2.0 loops replace the generic avatar loop: idle, researching, reading and waiting for input. Pending decisions take priority, then human browser control, document operations, browser research and idle. A browser error uses the waiting pose with a Needs your attention label; disconnection pauses the idle pose. Upload/download operations publish an active document count in `/api/state`, cleared even on failure. The animation does not start jobs or infer success from an RFP status.
+
+Settings includes a clearly separate motion preview. The avatar pause preference persists locally, respects reduced-motion defaults, and playback pauses while the page is hidden. Videos are muted, served from the app’s own assets, and only change sources when the activity changes.
+
+Validate state precedence with `node --test tests/billy-motion.test.mjs` alongside the backend test suite.

@@ -1,0 +1,26 @@
+{
+  "generator": "Higgsfield \u00b7 Seedance 2.0",
+  "reference": "../agent-poster.jpg",
+  "states": {
+    "idle": {
+      "file": "idle.mp4",
+      "poster": "idle.jpg",
+      "sha256": "032baf973ef12e803522e4afb8d02d3a68ce3f574a8f293ab7ed609f7dfdee33"
+    },
+    "researching": {
+      "file": "researching.mp4",
+      "poster": "researching.jpg",
+      "sha256": "f2463a97c6f6f565992a593949675fdb47cad685397506c7cc1c0fde27832840"
+    },
+    "waiting": {
+      "file": "waiting.mp4",
+      "poster": "waiting.jpg",
+      "sha256": "0ebe2d83fd931974323008d8781c32a9febc876c004d7fd13f6baf2ed51e28ec"
+    },
+    "reading": {
+      "file": "reading.mp4",
+      "poster": "reading.jpg",
+      "sha256": "278da4e35e541334ae34949ecc6b01621d3bbca34f17d306bd8dbfd5247f95ef"
+    }
+  }
+}

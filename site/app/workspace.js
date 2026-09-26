@@ -1,3 +1,4 @@
+import {createBillyMotion,setupMotionPreview} from './billy-motion.js';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -7,14 +8,22 @@ let rfpRows=[], rfpStatuses=[], rfpSort='updated', rfpAscending=false, editingRF
 const views = {chats:'Chats',rfps:'RFPs',sources:'Sources',company:'Company Profile',artifacts:'Artifacts',settings:'Settings'};
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
+const billyMotion=createBillyMotion();
+let documentRequests=0, workspaceConnected=false;
+const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests});
+setupMotionPreview();
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
   if(data instanceof FormData) opts.body=data;
   else if(data!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(data);}
+  const reading=data!==undefined && (path==='/documents' || /^\/rfps\/[^/]+\/documents\/download$/.test(path));
+  if(reading){documentRequests++;updateBillyMotion();}
+  try {
   const response=await fetch(API+'/api'+path,opts);
   if(!response.ok){let detail;try{detail=(await response.json()).detail;}catch{}throw Error(typeof detail==='string'?detail:`Workspace request failed (${response.status}).`);}
-  return response.json();
+  return await response.json();
+  } finally {if(reading){documentRequests--;updateBillyMotion();}}
 }
 function showView(name) {
   currentView=name;
@@ -86,7 +95,7 @@ $('#import-form').onsubmit=async e=>{e.preventDefault();const file=$('#proposal-
 function renderArtifacts(){let html=(state?.documents||[]).map(d=>`<article class="document-card"><span class="eyebrow">${d.rfp_id?'RFP ORIGINAL':'IMPORTED RESPONSE'}</span><h3>${esc(d.name)}</h3><p>PDF pages ${d.first_page}–${d.last_page}. Extracted text and original file.</p><button data-document="${d.id}">Open pages ↗</button></article>`).join('');if(state?.research)html+=`<article class="research-card"><span class="eyebrow">SAVED RESEARCH</span><h3>${esc(state.research.title)}</h3><p>Captured ${esc(date(state.research.checked))} at ${esc(when(state.research.checked))}</p><button id="artifact-research">Open research ↗</button></article>`;$('#artifact-list').innerHTML=html||'<div class="empty-state">Your work will collect here. Import a response or read an RFP source to create your first artifact.</div>';bindDocuments();if($('#artifact-research'))$('#artifact-research').onclick=()=>{showView('rfps');rfpsTab(false);};}
 function approvalHTML(p){return `<article class="decision-card"><strong>${esc(p.title)}</strong><p>${esc(p.detail)}</p><p>${esc(p.url)}</p><div class="decision-actions"><button class="approve" data-approve="true">${p.kind==='form'?'Submit form':'Allow once'}</button><button data-approve="false">Decline</button></div></article>`;}
 function renderDecisions(){const pending=state?.browser.pending;$('#decision-count').textContent=pending?'1':'';$('#pending-decisions').innerHTML=pending?approvalHTML(pending):'<div class="empty-state">Nothing waiting on you.<br>Billy will pause here before sending or submitting.</div>';$('#dialog-approval').innerHTML=pending?approvalHTML(pending):'';document.querySelectorAll('[data-approve]').forEach(btn=>btn.onclick=async()=>{try{await api('/browser/approval',{id:pending.id,approved:btn.dataset.approve==='true'});await refresh();toast(btn.dataset.approve==='true'?'Approved once. Repeat the intended action within 30 seconds.':'Action declined.');}catch(err){toast(err.message);}});const approvals=(state?.events||[]).filter(e=>e.kind==='approval');$('#approval-history').innerHTML=approvals.length?approvals.map(e=>`<div class="history-item"><strong>${esc(e.title)}</strong>${esc(e.detail)}<br>${esc(when(e.at))}</div>`).join(''):'<div class="empty-state">Your approvals will be recorded here.</div>';}
-async function refresh(){try{const next=await api('/state');state=next;$('#connection-notice').hidden=true;$('#billy-status').textContent=next.browser.status;$('#status-dot').className='status-dot connected'+(next.browser.busy?' working':'');$('#vm-label').textContent=next.environment;$('#environment-setting').textContent=next.environment+' · browser, saved research and document storage';$('#backend-status').textContent='Connected';$('#indexed-count').textContent=`${next.total.toLocaleString()} sources indexed`;
+async function refresh(){try{const next=await api('/state');state=next;workspaceConnected=true;updateBillyMotion();$('#connection-notice').hidden=true;$('#vm-label').textContent=next.environment;$('#environment-setting').textContent=next.environment+' · browser, saved research and document storage';$('#backend-status').textContent='Connected';$('#indexed-count').textContent=`${next.total.toLocaleString()} sources indexed`;
   $('#activity-log').innerHTML=next.events.length?next.events.map(e=>`<li class="${esc(e.kind)}"><strong>${esc(e.title)}</strong><p>${esc(e.kind==='error'?e.detail.split('\n')[0]:e.detail)}</p><time>${esc(when(e.at))}</time></li>`).join(''):'<li><strong>Ready when you are</strong><p>Pick a source or import a previous response to get started.</p></li>';
   if(initialized){const newEvents=next.events.filter(e=>e.id>lastEvent).reverse();newEvents.forEach(e=>{if(e.kind==='done'&&e.title==='Page read and saved')addMessage(`I’ve read and saved the page: ${next.research?.title||e.detail}. Choose a relevant link to continue, or inspect the browser.`,false,[{label:'Review page links ↗',action:()=>{showView('rfps');rfpsTab(false);}}]);if(e.kind==='error')addMessage(e.detail);});}
   lastEvent=Math.max(lastEvent,...next.events.map(e=>e.id));initialized=true;
@@ -95,7 +104,7 @@ async function refresh(){try{const next=await api('/state');state=next;$('#conne
   const mine=next.browser.controller==='you';$('#browser-owner').textContent=mine?'You are in control':'Billy is in control';$('#take-control').textContent=mine?'Hand back to Billy':'Take control';$('#take-control').disabled=next.browser.busy||!next.browser.ready;$('#remote-screen').classList.toggle('in-control',mine);$('#browser-note').textContent=mine?'Click the page to focus a field. Type below, or use your keyboard. Submit actions still require approval.':'You can watch Billy here. Take control to interact with this session.';
   ['#browser-back','#browser-reload','#browser-text','#send-browser-text','#browser-enter','#browser-scroll-up','#browser-scroll-down'].forEach(s=>$(s).disabled=!mine||next.browser.busy);
   renderDecisions();if(currentView==='company')renderDocuments();if(currentView==='artifacts')renderArtifacts();if(currentView==='rfps'&&!$('#opportunities-view').hidden)renderResearch();
-}catch(err){$('#connection-notice').hidden=false;$('#connection-notice').textContent=local?'Billy’s workspace is not connected. Start the local service or reconnect the VM tunnel. Your saved work is retained.':'Open your connected workspace to use Billy’s browser and private documents.';$('#billy-status').textContent='Workspace disconnected';$('#status-dot').className='status-dot';$('#backend-status').textContent='Disconnected';}}
+}catch(err){$('#connection-notice').hidden=false;$('#connection-notice').textContent=local?'Billy’s workspace is not connected. Start the local service or reconnect the VM tunnel. Your saved work is retained.':'Open your connected workspace to use Billy’s browser and private documents.';workspaceConnected=false;updateBillyMotion();$('#backend-status').textContent='Disconnected';}}
 async function refreshFrame(){if(!state?.browser.ready||pendingFrame||document.hidden)return;pendingFrame=true;try{const res=await fetch(API+'/api/browser/frame');if(res.status!==200)return;const blob=await res.blob();const old=frameURL;frameURL=URL.createObjectURL(blob);$('#browser-thumbnail').src=frameURL;$('#browser-full').src=frameURL;$('#browser-thumbnail').hidden=false;$('#browser-empty').hidden=true;$('#full-empty').hidden=true;if(old)URL.revokeObjectURL(old);}catch{}finally{pendingFrame=false;}}
 function expandBrowser(){ $('#browser-dialog').showModal();refreshFrame(); }
 $('#expand-browser').onclick=expandBrowser;$('#close-browser').onclick=()=>$('#browser-dialog').close();
@@ -107,8 +116,6 @@ $('#remote-screen').onkeydown=e=>{if(state?.browser.controller!=='you'||e.key===
 $('#send-browser-text').onclick=()=>{const text=$('#browser-text').value;if(text){browserAction({kind:'type',text});$('#browser-text').value='';}};
 $('#browser-text').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#send-browser-text').click();}};
 $('#browser-enter').onclick=()=>browserAction({kind:'key',text:'Enter'});$('#browser-back').onclick=()=>browserAction({kind:'back'});$('#browser-reload').onclick=()=>browserAction({kind:'reload'});$('#browser-scroll-up').onclick=()=>browserAction({kind:'scroll',delta:-600});$('#browser-scroll-down').onclick=()=>browserAction({kind:'scroll',delta:600});
-const video=$('#billy-video');$('#billy-motion').onclick=()=>{if(video.paused){video.play().catch(()=>{});$('#billy-motion').textContent='Ⅱ';$('#billy-motion').setAttribute('aria-label','Pause Billy animation');}else{video.pause();$('#billy-motion').textContent='▷';$('#billy-motion').setAttribute('aria-label','Play Billy animation');}};
-if(!matchMedia('(prefers-reduced-motion: reduce)').matches)$('#billy-motion').click();
 await refresh();await loadSources();setInterval(refresh,2500);setInterval(refreshFrame,1600);
 
 

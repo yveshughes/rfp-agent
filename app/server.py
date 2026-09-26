@@ -204,6 +204,17 @@ class Browser:
             self.busy = False
 
 b = Browser()
+document_jobs = 0
+
+@asynccontextmanager
+async def document_work():
+    global document_jobs
+    document_jobs += 1
+    try:
+        yield
+    finally:
+        document_jobs -= 1
+
 
 @asynccontextmanager
 async def lifespan(app):
@@ -242,7 +253,7 @@ async def state():
     with db() as c:
         events = [dict(r) for r in c.execute('SELECT * FROM events ORDER BY id DESC LIMIT 24')]
         docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added,rfp_id,source_url,total_pages FROM documents ORDER BY added DESC')]
-    return {'environment':ENVIRONMENT,'browser':{'ready':bool(b.page),'url':b.page.url if b.page else None,'controller':b.controller,'busy':b.busy,'status':b.status,'error':b.error,'pending':b.pending},'events':events,'documents':docs,'research':read('research'),'total':len(SOURCES),'policy':{'draft_forms':True,'submission':'approval_required'},'model':None}
+    return {'environment':ENVIRONMENT,'document_jobs':document_jobs,'browser':{'ready':bool(b.page),'url':b.page.url if b.page else None,'controller':b.controller,'busy':b.busy,'status':b.status,'error':b.error,'pending':b.pending},'events':events,'documents':docs,'research':read('research'),'total':len(SOURCES),'policy':{'draft_forms':True,'submission':'approval_required'},'model':None}
 
 @app.get('/api/sources')
 async def sources(q: str='', state: str='', offset: int=0, limit: int=30, watched: bool=False):
@@ -434,8 +445,9 @@ async def store_pdf(raw, name, first_page=1, last_page=0, rfp_id=None, source_ur
 
 @app.post('/api/documents')
 async def document(file: UploadFile=File(...), first_page: int=Form(1), last_page: int=Form(0), rfp_id: str=Form('')):
-    raw = await file.read(25*1024*1024+1)
-    return await store_pdf(raw,file.filename or 'proposal.pdf',first_page,last_page,rfp_id or None)
+    async with document_work():
+        raw = await file.read(25*1024*1024+1)
+        return await store_pdf(raw,file.filename or 'proposal.pdf',first_page,last_page,rfp_id or None)
 
 class PDFSource(BaseModel):
     url: str = Field(max_length=2000)
@@ -474,9 +486,10 @@ async def fetch_pdf(url):
 @app.post('/api/rfps/{rfp_id}/documents/download')
 async def download_pdf(rfp_id: str, req: PDFSource):
     require_rfp(rfp_id)
-    raw,url=await fetch_pdf(req.url)
-    name=Path(unquote(urlparse(url).path)).name or 'rfp-original.pdf'
-    return await store_pdf(raw,name,rfp_id=rfp_id,source_url=url,automatic=True)
+    async with document_work():
+        raw,url=await fetch_pdf(req.url)
+        name=Path(unquote(urlparse(url).path)).name or 'rfp-original.pdf'
+        return await store_pdf(raw,name,rfp_id=rfp_id,source_url=url,automatic=True)
 
 @app.get('/api/documents/{doc_id}')
 async def get_document(doc_id: str):

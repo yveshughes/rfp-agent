@@ -147,4 +147,15 @@ class WorkspaceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual({r['source_id'] for r in c.execute('SELECT source_id FROM watches')},{1,2})
                 c.execute('DELETE FROM watches')
 
+    async def test_document_activity_tracks_overlapping_jobs_and_cleans_up(self):
+        self.assertEqual(server.document_jobs,0)
+        with self.assertRaises(RuntimeError):
+            async with server.document_work():
+                self.assertEqual((await server.state())['document_jobs'],1)
+                async with server.document_work():
+                    self.assertEqual(server.document_jobs,2)
+                self.assertEqual(server.document_jobs,1)
+                raise RuntimeError('PDF processing failed')
+        self.assertEqual((await server.state())['document_jobs'],0)
+
 if __name__=='__main__': unittest.main()
