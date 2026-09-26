@@ -26,10 +26,11 @@ from pypdf import PdfReader
 from playwright.async_api import async_playwright
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA = Path(os.environ.get('BILLY_DATA_DIR', ROOT / '.billy'))
+DATA = Path(globals().get('_workspace_data') or os.environ.get('BILLY_DATA_DIR', ROOT / '.billy'))
 DATA.mkdir(parents=True, exist_ok=True)
 SOURCE_FILE = Path(os.environ.get('BILLY_SOURCES', ROOT / 'rfpsonar-found-rfp-sources.json'))
-SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE.exists() else []
+SOURCES = globals().get('_workspace_sources')
+if SOURCES is None: SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE.exists() else []
 DB = DATA / 'workspace.sqlite3'
 WATCH_LIMIT = int(os.environ.get('BILLY_WATCH_LIMIT', '10'))
 ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
@@ -251,7 +252,7 @@ async def local_access(request: Request, call_next):
         response.headers['Vary'] = 'Origin'
         response.headers['Access-Control-Allow-Headers'] = 'content-type,x-billy-client'
         response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
-    response.headers['Cache-Control'] = 'no-store' if request.url.path.startswith('/api/') else 'no-cache'
+    response.headers['Cache-Control'] = 'no-store' if request.url.path.startswith(('/api/', '/w/')) else 'no-cache'
     return response
 
 @app.get('/api/state')
@@ -530,7 +531,7 @@ opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_s
 from app.agent import BillyAgent
 from app.response_pdf import register_response_pdf
 export_response_pdf = register_response_pdf(app, db, DATA, rfp_workspace, event)
-agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf)
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'))
 
 async def watch_opportunities():
     while True:
@@ -543,3 +544,11 @@ async def watch_opportunities():
             except HTTPException: pass
 
 app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')
+
+# Each company gets its own runtime (including agent/browser), database and files.
+# The directory mounts these runtimes; it never changes an in-flight job's DB.
+if __name__ == 'app.server':
+    import sys
+    from app.workspaces import WorkspaceDirectory
+    workspace_directory = WorkspaceDirectory(sys.modules[__name__])
+    app = workspace_directory.app

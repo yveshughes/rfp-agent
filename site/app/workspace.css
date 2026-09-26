@@ -35,3 +35,16 @@
 .opportunity-intro{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:20px 0}.opportunity-intro strong{font-size:1.2rem}.opportunity-intro p{margin:8px 0}.fit-explanation{min-width:140px;max-width:300px}.fit-explanation summary{cursor:pointer}.fit-explanation p{font-size:.82rem;line-height:1.5}.fit-explanation small,#opportunity-rows td>small{display:block;color:var(--muted);font-size:.76rem;margin-top:5px}.fit-explanation button{padding:3px 5px;font-size:.76rem}#opportunity-rows td{vertical-align:top}#opportunity-feed table th button{background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer}
 #opportunity-rows td:nth-child(4){white-space:nowrap}#opportunity-rows td:first-child{min-width:180px}#refresh-opportunities{white-space:nowrap;color:var(--green)}
 .agent-job{margin:18px 0 30px;padding:16px 0;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}.agent-job button{display:inline-block;margin:12px 8px 0 0}.agent-job p{white-space:pre-wrap}
+
+/* Company switcher lives at the foot of the navigation, including icon-only mode. */
+.workspace-picker{position:relative;padding:0!important;display:block!important;overflow:visible}
+#workspace-switcher{display:flex;align-items:center;gap:10px;width:100%;padding:12px 4px;text-align:left;border-radius:10px}
+#workspace-switcher:hover{background:#edf0e8}#workspace-switcher>.nav-label{min-width:0;flex:1}
+#workspace-switcher strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+#workspace-switcher small{display:block;margin-top:4px;font-size:10px;color:var(--muted)}
+#workspace-switcher .workspace-icon{flex-shrink:0;font-size:11px}#workspace-switcher>.workspace-chevron{flex:0}
+#workspace-menu{position:absolute;bottom:calc(100% + 8px);left:0;width:260px;max-width:80vw;background:white;border:1px solid var(--line);border-radius:13px;padding:8px;box-shadow:0 12px 40px #20302626;z-index:40}
+#workspace-menu>p{font-size:10px;color:var(--muted);padding:5px 9px;margin:0 0 5px;text-transform:uppercase;letter-spacing:.12em}
+#workspace-choices{max-height:240px;overflow:auto}.workspace-choice{display:flex;justify-content:space-between;gap:12px;width:100%;padding:11px 9px;text-align:left;border-radius:7px;font-size:12px}.workspace-choice span:first-child{overflow-wrap:anywhere}.workspace-choice:hover,.workspace-choice[aria-current=true]{background:#f0f3ea}
+#add-workspace{border-top:1px solid var(--line);margin-top:7px;padding:13px 9px 7px;width:100%;text-align:left;font-size:12px;color:var(--green)}
+.new-workspace-dialog{width:min(440px,90vw);border:1px solid var(--line);border-radius:16px;padding:28px;color:var(--ink);box-shadow:0 25px 100px #0003}.new-workspace-dialog::backdrop{background:#18251c88;backdrop-filter:blur(3px)}.new-workspace-dialog h2{font-size:24px;margin:0 0 12px}.new-workspace-dialog p{font-size:13px;line-height:1.7;color:var(--muted)}.new-workspace-dialog label{display:block;font-size:12px;margin:22px 0 8px}.new-workspace-dialog input{width:100%;box-sizing:border-box;padding:12px;border:1px solid var(--line);border-radius:8px;font:inherit}.new-workspace-dialog form>div{display:flex;justify-content:flex-end;gap:16px;margin-top:24px}.new-workspace-dialog button{font-size:12px;padding:10px 14px}

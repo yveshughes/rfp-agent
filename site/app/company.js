@@ -1,7 +1,7 @@
 // Company facts are captured in scoped conversations, with explicit evidence provenance.
-export function createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState,openDiscussion}) {
+export function createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState,openDiscussion}) {
   const $=s=>document.querySelector(s);
-  let profile=null, section='company', field=null, busy=false, signature='', chatField=sessionStorage.getItem('billy-company-field');
+  let profile=null, section='company', field=null, busy=false, signature='', chatField=sessionStorage.getItem(storageKey('company-field'));
   let editing=null, savingEdit=false;
   const drafts=new Map();
   const labels={'Reported by you':'reported','Evidence linked':'evidence','Unknown':'unknown','Gap reported':'gap'};
@@ -82,8 +82,8 @@ export function createCompanyProfile({api,esc,toast,showView,addMessage,openDocu
     $('#profile-answer').focus();
   }
   function syncChatContext(){const label=profile?.sections.flatMap(s=>s.fields).find(f=>f.id===chatField)?.label;$('#company-chat-context').hidden=!label||!$('#discuss-session').hidden;$('#company-chat-label').textContent=label?'Company Profile · '+label:'';$('#chat-input').placeholder=label?'Reply to Billy about '+label.toLowerCase()+'…':'Find RFPs that fit my business and help me apply…';$('#chat-form label').textContent=label?'Reply to Billy about '+label:'Message Billy';$('#chat-form button').setAttribute('aria-label',label?'Send company profile answer':'Send message');$('#chat-form small').textContent=label?'Your answers update this company detail.':'Billy prepares drafts. You approve before submission.';}
-  $('#profile-continue-chat').onclick=()=>{chatField=field;sessionStorage.setItem('billy-company-field',field);syncChatContext();$('#profile-dialog').close();showView('chats');$('#company-chat-context').hidden=false;$('#company-chat-label').textContent='Company Profile · '+getField().label;$('#chat-input').placeholder='Reply to Billy about '+getField().label.toLowerCase()+'…';addMessage(profile.messages.filter(m=>m.field===field&&m.role==='billy').at(-1)?.text||'Tell me what to record.');$('#chat-input').focus();};
-  $('#company-chat-exit').onclick=()=>{chatField=null;sessionStorage.removeItem('billy-company-field');syncChatContext();$('#company-chat-context').hidden=true;$('#chat-input').placeholder='Find RFPs that fit my business and help me apply…';};
+  $('#profile-continue-chat').onclick=()=>{chatField=field;sessionStorage.setItem(storageKey('company-field'),field);syncChatContext();$('#profile-dialog').close();showView('chats');$('#company-chat-context').hidden=false;$('#company-chat-label').textContent='Company Profile · '+getField().label;$('#chat-input').placeholder='Reply to Billy about '+getField().label.toLowerCase()+'…';addMessage(profile.messages.filter(m=>m.field===field&&m.role==='billy').at(-1)?.text||'Tell me what to record.');$('#chat-input').focus();};
+  $('#company-chat-exit').onclick=()=>{chatField=null;sessionStorage.removeItem(storageKey('company-field'));syncChatContext();$('#company-chat-context').hidden=true;$('#chat-input').placeholder='Find RFPs that fit my business and help me apply…';};
   $('#close-profile-dialog').onclick=()=>$('#profile-dialog').close();
   $('#profile-chat-form').onsubmit=async e=>{e.preventDefault();const text=$('#profile-answer').value.trim();if(!text||busy)return;if(await send(text))$('#profile-answer').value='';};
   document.querySelectorAll('[data-profile-answer]').forEach(b=>b.onclick=()=>send(b.dataset.profileAnswer));

@@ -4,6 +4,7 @@ import json
 import os
 import time
 import uuid
+from types import SimpleNamespace
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
@@ -91,10 +92,11 @@ def complete(messages):
 
 
 class BillyAgent:
-    def __init__(self,app,db,event,profile,feed,workspace,save_section,research,browser,export_pdf=None):
+    def __init__(self,app,db,event,profile,feed,workspace,save_section,research,browser,export_pdf=None,usage_db=None):
         self.db,self.event,self.profile,self.feed=db,event,profile,feed
         self.workspace,self.save_section,self.research,self.browser=workspace,save_section,research,browser
         self.export_pdf=export_pdf
+        self.usage_db=usage_db or db
         self.task=None
         with db() as c:
             c.executescript('''
@@ -117,7 +119,7 @@ class BillyAgent:
             run=dict(row)
             messages=[dict(r) for r in c.execute('SELECT id,role,text,created FROM agent_messages WHERE run_id=? ORDER BY id',(run['id'],))]
             steps=[dict(r) for r in c.execute('SELECT id,tool,model,created FROM agent_steps WHERE run_id=? ORDER BY id',(run['id'],))]
-        with self.db() as c:usage=c.execute('SELECT COALESCE(SUM(COALESCE(actual,reserved)),0) FROM agent_usage').fetchone()[0]
+        with self.usage_db() as c:usage=c.execute('SELECT COALESCE(SUM(COALESCE(actual,reserved)),0) FROM agent_usage').fetchone()[0]
         return {'config':model_config(),'run':run,'messages':messages,'steps':steps,'usage_usd':round(usage,6),'budget_usd':float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))}
 
     async def message(self,req:AgentTurn):
@@ -188,7 +190,7 @@ class BillyAgent:
         # Conservative preflight: assume at most one input token per UTF-8 byte.
         reserve=((len(json.dumps(messages).encode())+2000)*.75+6000*3)/1_000_000
         budget=float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))
-        with self.db() as c:
+        with self.usage_db() as c:
             c.execute('BEGIN IMMEDIATE')
             used=c.execute('SELECT COALESCE(SUM(COALESCE(actual,reserved)),0) FROM agent_usage').fetchone()[0]
             if used+reserve>budget:raise RuntimeError('Billy reached the inference budget. Saved work is retained.')
@@ -198,7 +200,7 @@ class BillyAgent:
     def record_usage(self,usage_id,usage):
         if isinstance(usage,dict) and 'prompt_tokens' in usage and 'completion_tokens' in usage:
             cost=(max(0,int(usage['prompt_tokens']))*.75+max(0,int(usage['completion_tokens']))*3)/1_000_000
-            with self.db() as c:c.execute('UPDATE agent_usage SET actual=? WHERE id=?',(cost,usage_id))
+            with self.usage_db() as c:c.execute('UPDATE agent_usage SET actual=? WHERE id=?',(cost,usage_id))
 
     async def execute(self,rid,tool,a):
         if tool=='company':return {'profile':await self.profile(),'fields':FIELDS}
@@ -241,12 +243,12 @@ class BillyAgent:
             self.event('agent','Selected an RFP',str(a['reason'])[:1500])
             return {'selected':a['rfp_id'],'reason':a['reason']}
         if tool=='open_source':
-            from app.server import ResearchRequest
-            await self.research(ResearchRequest(source_id=int(a['source_id'])))
+            await self.research(SimpleNamespace(source_id=int(a['source_id']),url=None))
             if self.browser.task:await self.browser.task
             if self.browser.error:raise ValueError(self.browser.error)
-            from app.server import read
-            captured=read('research',{})
+            with self.db() as c:
+                row=c.execute("SELECT value FROM state WHERE key='research'").fetchone()
+            captured=json.loads(row['value']) if row else {}
             return {'opened':self.browser.page.url,'status':self.browser.status,'title':captured.get('title'),'text':captured.get('text','')[:20000],'text_truncated':len(captured.get('text',''))>20000,'links':captured.get('links',[])}
         if tool=='documents':
             with self.db() as c:return [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,total_pages FROM documents WHERE rfp_id IS NULL ORDER BY added DESC')]

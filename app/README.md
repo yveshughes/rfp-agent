@@ -23,7 +23,7 @@ Connect from the Mac with the server's existing authorized SSH login:
 ssh -N -L 127.0.0.1:8081:127.0.0.1:8787 root@YOUR_SERVER_IP
 ```
 
-Then open http://localhost:8081/app/, or use the local static UI at http://localhost:8080/app/. The browser, imported PDFs and database are on Vultr when using this tunnel. No new publicly reachable API port is needed. Do not proxy this API to public nginx until authenticated HTTPS/NetBird access and workspace authorization have been implemented. There is one shared workspace, not tenant isolation.
+Then open http://localhost:8081/app/, or use the local static UI at http://localhost:8080/app/. The browser, imported PDFs and database are on Vultr when using this tunnel. No new publicly reachable API port is needed. Do not proxy this API to public nginx until authenticated HTTPS/NetBird access and workspace authorization have been implemented. The bottom-left workspace switcher supports multiple demo companies for this single owner. Each company has a separate SQLite database, uploaded/generated files, agent state and browser session. URLs scope every request and file link to its company; background jobs retain that scope when the UI switches. The source directory and inference budget ledger are shared. This is data separation for one trusted owner, not multi-user authorization or tenant security isolation.
 
 ## Control and approval behavior
 
@@ -114,3 +114,9 @@ Berkeley and the public Municode tables used by East Palo Alto and Siskiyou Coun
 Fit is a deterministic, preliminary lexical score: 65% title term overlap and 35% body term overlap against company overview, services, sectors and projects. Unknown company capabilities or unreadable detail pages produce no score. Matching terms and company evidence page links are shown. This is not semantic AI evaluation, compliance verification, or a win probability. Ratings are recalculated from current profile facts on each feed load. Pursuit never submits anything externally.
 
 A readable RFP with a supporting PDF beyond the extraction limit can receive a preliminary score from the available pages, with an explicit incomplete-review warning. Failed downloads never erase an earlier successful review. Municode page text excludes navigation and footer content from the fit calculation.
+
+## Workspace persistence and checks
+
+The original company retains its existing database and files in `BILLY_DATA_DIR`. Additional companies live under `companies/<id>/`. The registry and shared inference usage ledger remain in the original database, preserving usage already billed before this feature. All saved companies resume source watchers on service startup. The source directory is shared read-only; watched selections remain company-specific.
+
+Install test dependencies with `uv pip install --python .venv/bin/python -r tests/requirements.txt`, then run `.venv/bin/python -m unittest discover -s tests -p 'test_*.py'` and `node --test tests/*.test.mjs`. Tests use temporary workspace data and no live model calls.

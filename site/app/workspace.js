@@ -1,13 +1,17 @@
+import {connectWorkspace} from './workspaces.js?v=companies-1';
 import {createAgentChat} from './agent-chat.js?v=auto-panel-1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js?v=auto-panel-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=agent-chat-2';
+import {createCompanyProfile} from './company.js?v=companies-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=auto-panel-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
-const API = local && location.port === '8080' ? 'http://127.0.0.1:8081' : '';
+const API_ORIGIN = local && location.port === '8080' ? 'http://127.0.0.1:8081' : '';
+const companyWorkspace = await connectWorkspace(API_ORIGIN, toast);
+const API = companyWorkspace.api;
+const storageKey = key => `billy-${companyWorkspace.id}-${key}`;
 let state = null, offset = 0, sourceTotal = 0, currentView = 'chats', lastEvent = 0, initialized = false, frameURL = null, pendingFrame = false, searchTimer, pendingSearch = 0;
 let rfpRows=[], rfpStatuses=[], rfpSort='updated', rfpAscending=false, editingRFP=null, openingRFP=0;
 const views = {chats:'Chats',rfps:'RFPs',sources:'Sources',company:'Company Profile',artifacts:'Artifacts',settings:'Settings'};
@@ -47,7 +51,7 @@ const updateBillyMotion=(forcePanel=false)=>{
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
-const companyProfile=createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
+const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
 const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
@@ -87,9 +91,9 @@ function addMessage(text, user=false, buttons=[]) {
   const content=document.createElement('div');content.textContent=text;div.append(content);
   buttons.forEach(({label,action})=>{const btn=document.createElement('button');btn.textContent=label;btn.onclick=action;div.append(btn);});
   $('#conversation').append(div);$('#chat-scroll').scrollTop=$('#chat-scroll').scrollHeight;
-  sessionStorage.setItem('billy-chat-text',JSON.stringify([...$('#conversation').children].map(el=>({user:el.classList.contains('user'),text:el.querySelector('div')?.textContent}))));
+  sessionStorage.setItem(storageKey('chat-text'),JSON.stringify([...$('#conversation').children].map(el=>({user:el.classList.contains('user'),text:el.querySelector('div')?.textContent}))));
 }
-try { const messages=JSON.parse(sessionStorage.getItem('billy-chat-text')||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
+try { const messages=JSON.parse(sessionStorage.getItem(storageKey('chat-text'))||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
 $('#chat-form').onsubmit=async e=>{
   e.preventDefault();const input=$('#chat-input').value.trim();if(!input)return;
   if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';return;}
