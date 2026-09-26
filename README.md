@@ -32,6 +32,10 @@ sudo sh deploy/install.sh
 
 The installer serves **only `site/`** through nginx. Repository files, planning materials, and credentials are never copied into the web root. Allow HTTP ingress for this public preview; configure HTTPS with your domain before adding application accounts or uploading documents. The eventual application can use a separate NetBird-protected service.
 
+## Technical decision record
+
+The technical page’s **Key decisions** section (`/technical/#decisions`) records deployed choices, rationale, tradeoffs and verification evidence for technical Q&A. Update it when hosting, access, persistence, model-provider or deployment decisions change. Keep completed infrastructure separate from planned agent capabilities, and exclude credentials and billing details.
+
 ## Repository boundaries
 
 The root `.gitignore` allows only `site/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
