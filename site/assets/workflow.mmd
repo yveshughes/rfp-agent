@@ -1,23 +1,29 @@
 flowchart TD
-    accTitle: Billy end-to-end demo workflow
-    accDescr: Target workflow. A company profile informs discovery. A previous response supplies evidence. Discussion closes gaps before a reviewed PDF and explicit delivery approval. Vultr hosts the workflow; NetBird protects reviewer access.
-    A["Ask Billy + basic company profile"] --> B["Find and explain the Berkeley match"]
-    subgraph V["Work runs on Vultr"]
-      B --> C["Import previous response + cite evidence"]
-      C --> D["Identify gaps + draft response"]
-      D --> E["Discuss missing facts"]
-      E --> F["Save facts, tasks + response edits"]
-      F --> D
-      D -->|Ready for review| P["Response PDF in chat"]
-      P --> R["You review through protected access"]
-      R -->|Request changes| E
-      R -->|Approve exact version + destination| S["Billy executes test delivery"]
-      S --> T["Record delivery result"]
+    accTitle: Billy's live-tested workflow and remaining delivery integration
+    accDescr: GLM 5.3 through Vultr Serverless Inference selects bounded tools on the Vultr VM. The tested flow reads company facts, chooses an RFP, reads all extracted proposal pages, saves cited gaps and drafts, and generates an immutable review PDF. NetBird access and approval-bound delivery are planned.
+    A["Your request + company profile"] --> B["Billy agent on Vultr VM"]
+    B <-->|"Next action / tool results"| M["GLM 5.3 · Vultr Serverless Inference"]
+    subgraph V["Saved work on Vultr · bounded tools"]
+      B --> C["Compare opportunities + read original RFP"]
+      C --> D["Select match + open source in VM browser"]
+      D --> E["Ask to upload or reuse a prior response"]
+      E --> F["Read every extracted page + cite requirements"]
+      F --> G["Save gaps + versioned response sections"]
+      G --> H["Discuss missing facts with you"]
+      H --> I["Save reported facts + approved follow-ups"]
+      I --> G
+      G --> P["Immutable review PDF · page count + versions"]
     end
-    N["NetBird: authenticated review access"] -.-> R
+    P --> R["You review · unresolved facts stay visible"]
+    R -->|"Request edits"| H
+    N["Next: NetBird reviewer access"] -.-> R
+    R -.-> S["Next: approve exact version + recipient"]
+    S -.-> T["Next: test delivery + recorded result"]
     classDef work fill:#e6ecdf,stroke:#8caa7c,color:#172b29
     classDef human fill:#176349,stroke:#176349,color:#ffffff
     classDef output fill:#fff6df,stroke:#c8ad6d,color:#172b29
-    class B,C,D,F,S,N work
-    class A,E,R human
-    class P,T output
+    classDef planned fill:#f5f4ee,stroke:#89948b,color:#46554c,stroke-dasharray:5 5
+    class B,C,D,F,G,I,M work
+    class A,E,H,R human
+    class P output
+    class N,S,T planned
