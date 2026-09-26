@@ -8,7 +8,7 @@ Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
 
 This repository contains the **pitch page and technical overview only**. The application, AI processing, voice editing, and NetBird integration are not implemented yet. The page illustrates the intended workflow; it is not an interactive application screenshot.
 
-The “Live Demo” link opens `/app/` in a new tab. That route explicitly says the demo is coming soon. Replace the link in `site/index.html` and its adjacent status note when the application is ready.
+The “Live Demo” link opens `/app/` in a new tab. That route is a static workspace entry page, not a functioning application. Replace the demo links when the application is ready. Public pages omit temporary development banners; that does not change the implementation status documented here.
 
 The 6,222 figure is the size of the source directory collected for this project. It does not describe verified portals, active RFPs, or completed agent searches. The raw directory and research documents are not distributed in this repository.
 
