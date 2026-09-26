@@ -1,9 +1,10 @@
+import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
 import {connectWorkspace} from './workspaces.js?v=companies-1';
-import {createAgentChat} from './agent-chat.js?v=auto-panel-1';
+import {createAgentChat} from './agent-chat.js?v=completion-1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js?v=auto-panel-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=companies-1';
+import {createCompanyProfile} from './company.js?v=completion-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=auto-panel-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -53,7 +54,9 @@ const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
 const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
-const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+let chatSuggestions;
+const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();chatSuggestions?.update();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
@@ -96,10 +99,11 @@ function addMessage(text, user=false, buttons=[]) {
 try { const messages=JSON.parse(sessionStorage.getItem(storageKey('chat-text'))||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
 $('#chat-form').onsubmit=async e=>{
   e.preventDefault();const input=$('#chat-input').value.trim();if(!input)return;
-  if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';return;}
+  if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';chatSuggestions.update();return;}
   if(await agentChat.send(input))$('#chat-input').value='';
+  chatSuggestions.update();
 };
-$('#chat-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#chat-form').requestSubmit();}};
+$('#chat-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('#chat-form').requestSubmit();}};
 $('#start-california').onclick=()=>{showView('sources');$('#state-filter').value='CA';offset=0;loadSources();};
 $('#start-berkeley').onclick=()=>startResearch({source_id:5426},'Berkeley, California');
 $('#start-import').onclick=()=>companyProfile.documents();

@@ -38,5 +38,5 @@ export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDoc
     try{snapshot=await api('/agent/message',{text,request_id:crypto.randomUUID()});render();return true;}
     catch(e){toast(e.message);return false;}finally{sending=false;if(snapshot)render();}
   }
-  return {poll,send,hasRun:()=>!!snapshot?.run};
+  return {poll,send,getSnapshot:()=>snapshot,hasRun:()=>!!snapshot?.run};
 }
