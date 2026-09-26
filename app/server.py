@@ -218,8 +218,13 @@ async def document_work():
 
 @asynccontextmanager
 async def lifespan(app):
+    watcher = asyncio.create_task(watch_opportunities())
     yield
-    if b.task and not b.task.done(): b.task.cancel()
+    watcher.cancel()
+    await asyncio.gather(watcher, return_exceptions=True)
+    if b.task and not b.task.done():
+        b.task.cancel()
+        await asyncio.gather(b.task, return_exceptions=True)
     if b.browser: await b.browser.close()
     if b.pw: await b.pw.stop()
 
@@ -299,6 +304,9 @@ async def research(req: ResearchRequest):
         if req.url not in allowed: raise HTTPException(400, 'Choose a link from the saved page.')
         url = req.url
     await public_url(url)
+    # URL validation yields; a scheduled source check may have claimed the session.
+    if b.busy or b.controller != 'billy' or b.pending:
+        raise HTTPException(409, 'Billy’s session is busy or waiting for your decision.')
     b.busy = True
     b.task = asyncio.create_task(b.research(url,req.source_id))
     return {'started':True}
@@ -392,7 +400,7 @@ async def validate_rfp(req):
 @app.get('/api/rfps')
 async def rfps():
     with db() as c:
-        rows=[dict(r) for r in c.execute('SELECT rfps.*, (SELECT COUNT(*) FROM documents WHERE rfp_id=rfps.id) AS documents FROM rfps ORDER BY updated DESC')]
+        rows=[dict(r) for r in c.execute('SELECT rfps.*, (SELECT COUNT(*) FROM documents WHERE rfp_id=rfps.id) AS documents FROM rfps WHERE NOT EXISTS (SELECT 1 FROM discovered_rfps d WHERE d.rfp_id=rfps.id AND d.pursued=0) ORDER BY updated DESC')]
     return {'rows':rows,'statuses':STATUSES}
 
 @app.post('/api/rfps')
@@ -514,5 +522,18 @@ rfp_workspace, save_response_section, add_response_note = register_rfp_workspace
 
 from app.discussion import register_discussion
 discuss, discussion_config, transcribe = register_discussion(app, db, event, company_profile, company_chat, require_rfp)
+
+from app.opportunities import register_opportunities
+opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_source = register_opportunities(app, db, SOURCES, b, fetch_pdf, store_pdf, event)
+
+async def watch_opportunities():
+    while True:
+        await asyncio.sleep(15)
+        if b.busy or b.controller != 'billy' or b.pending: continue
+        with db() as c:
+            due=c.execute('SELECT 1 FROM watches w LEFT JOIN source_scans s ON s.source_id=w.source_id WHERE s.checked IS NULL OR s.checked<? LIMIT 1',(time.time()-3600,)).fetchone()
+        if due:
+            try: await refresh_opportunities()
+            except HTTPException: pass
 
 app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')

@@ -103,3 +103,12 @@ Text discussion uses Billy's working clip with a messaging bubble. Voice listeni
 Recommended next integration: **Gemini Live** for Billy’s natural back-and-forth conversation. It combines spoken replies, user interruptions, input/output transcripts, and tool calls. Muse Voice Transcribe is speech-to-text and needs separate reasoning and speech generation. The existing optional Meta push-to-talk adapter remains a transcription path; Gemini Live is a recommendation, not an already-connected service. Credentials and a live end-to-end test are still required.
 
 References: [Gemini Audio](https://deepmind.google/models/gemini-audio/), [Live API](https://ai.google.dev/gemini-api/docs/live-api), [Muse Voice Transcribe](https://dev.meta.ai/docs/speech-to-text).
+
+
+### Watched opportunities
+
+The RFP tab defaults to All opportunities; My RFPs contains manually saved or explicitly pursued bids. Watching a source queues a scan within 15 seconds when Billy is free. The service checks hourly while running, with a manual refresh button. Public downloads reuse DNS validation and pinned connections, without browser cookies or form submission. Discovery and document reviews are stored in SQLite; full originals remain in private VM storage.
+
+Berkeley's public listing table has a tested adapter. Other sources use conservative table/link discovery and report partial coverage, including pagination or access limits. No company-fit threshold removes candidates. A bounded 100-page listing scan follows same-site next-page links. PDF extraction retains full originals and reads at most 100 pages per file. Previously discovered RFPs survive portal failures and disappearing listings; current availability must be confirmed at the source.
+
+Fit is a deterministic, preliminary lexical score: 65% title term overlap and 35% body term overlap against company overview, services, sectors and projects. Unknown company capabilities or unreadable detail pages produce no score. Matching terms and company evidence page links are shown. This is not semantic AI evaluation, compliance verification, or a win probability. Ratings are recalculated from current profile facts on each feed load. Pursuit never submits anything externally.
