@@ -31,6 +31,7 @@ function showView(name) {
   currentView=name;
   Object.keys(views).forEach(view=>{ $('#view-'+view).hidden=view!==name; document.querySelector(`[data-view="${view}"]`).classList.toggle('selected',view===name); });
   $('#view-title').textContent=views[name];
+  $('#profile-progress').hidden=name!=='company';
   if(name==='rfps')loadRFPs();
   if(name==='sources')loadSources();
   if(name==='company'){renderDocuments();companyProfile.load();}
