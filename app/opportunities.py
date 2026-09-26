@@ -74,7 +74,10 @@ class Page(HTMLParser):
             if not berkeley and not self.rfp_table and not re.search(r'\b(rfp|rfq|bid|solicitation|proposal)\b|\d{1,2}/\d{1,2}/\d{4}',row['text'],re.I): continue
             dates=re.findall(r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b',row['text'])
             deadline=f'{dates[0][2]}-{int(dates[0][0]):02}-{int(dates[0][1]):02}' if (berkeley or self.rfp_table) and dates else ''
-            candidates.append(dict(first,excerpt=row['text'],deadline=deadline))
+            candidate=dict(first,excerpt=row['text'],deadline=deadline)
+            if row['rfp']:
+                candidate['listing_attachments']=[l for l in row['links'] if urlsplit(l['url']).path.lower().endswith('.pdf')]
+            candidates.append(candidate)
         if not candidates and not berkeley:
             for link in self.links:
                 if re.search(r'\b(?:RFP|RFQ|solicitation)\s*[#:\d-]',link['title'],re.I):
@@ -171,7 +174,7 @@ def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, e
                 browser.status=f'Reviewing {item["title"][:70]}'
                 try:
                     raw,final,page=await read_page(item['url'])
-                    item['attachments']=([{'url':final,'title':item['title']}] if page is None else [l for l in page.links if urlsplit(l['url']).path.lower().endswith('.pdf')])
+                    item['attachments']=([{'url':final,'title':item['title']}] if page is None else item.get('listing_attachments',[l for l in page.links if urlsplit(l['url']).path.lower().endswith('.pdf')]))
                     item['text']=page.text if page else item['excerpt']
                     rid=persist(source,dict(item,error='Review in progress'))
                     attachment_errors=[]

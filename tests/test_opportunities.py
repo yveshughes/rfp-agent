@@ -144,3 +144,17 @@ class OpportunityTests(unittest.IsolatedAsyncioTestCase):
             with patch.object(server,'public_url',claimed):
                 with self.assertRaises(server.HTTPException): await server.research(server.ResearchRequest(source_id=5426))
         finally: server.b.busy=False
+
+    async def test_municode_downloads_only_listing_attachments_not_footer_map(self):
+        from fastapi import FastAPI
+        from app.opportunities import register_opportunities
+        seen=[]
+        async def fetch(url):
+            seen.append(url)
+            if url==URL:
+                return ('<div class="view-id-rfps">'+listing().replace('</td>','<a href="/original.pdf">RFP PDF</a></td>',1)+'</div>').encode(),url
+            if url.endswith('/original.pdf'): raise ValueError('Intentional fixture download failure')
+            return b'<main>Environmental review</main><div class="footer"><a href="/city-map.pdf">City Map</a></div>',url
+        _,_,_,scan=register_opportunities(FastAPI(),server.db,[self.source],server.b,fetch,AsyncMock(),server.event)
+        await scan(self.source)
+        self.assertEqual(seen,[URL,URL+'/environmental','https://berkeleyca.gov/original.pdf'])
