@@ -1,6 +1,6 @@
 # Billy workspace
 
-A single-owner app with a five-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup in Chats is deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
+A single-owner app with a six-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup in Chats is deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
 
 ## Run on this Mac
 
@@ -45,3 +45,17 @@ node --check site/app/workspace.js
 ```
 
 The directory-count integration check requires the private source file and skips when it is absent. Tests cover California/Berkeley disambiguation, pagination, private-address rejection, browser ownership, one-use approvals and persisted research metadata.
+
+## RFP pipeline and originals
+
+RFPs opens to **My RFPs**, a searchable table with sortable title, agency, status, due date, file count and update date. Add a record directly or choose **Track RFP** from Saved research. Statuses are owner-managed: Researching, Drafting, Ready for review, Responded, Closed — won, Closed — lost and Not pursuing. A status change never sends or submits anything.
+
+Open a record to edit its details and save original PDFs from a public URL or an upload. Downloading validates redirects and does not send browser cookies; a gated portal may require a manual download and upload. Linked PDFs selected from Saved research open the RFP save flow. Arbitrary browser download events are not captured automatically yet.
+
+The complete original is stored as `$BILLY_DATA_DIR/<document-id>.pdf`; metadata, source URL, SHA-256, extraction range and RFP association live in SQLite. On the VM this is `/var/lib/billy/workspace/`. The filename is preserved for downloads. Repeated identical imports for the same RFP and page range reuse the stored document. URL downloads extract the first 100 pages while keeping the whole original; uploads permit choosing a range. Existing imported responses stay under Company Profile and Artifacts.
+
+This central VM storage survives restarts and is available to authorized clients through their workspace connection. It is **not** public storage, multi-user authorization, an off-VM backup or object storage. The SSH tunnel is still required. Next storage step: a private object-store bucket behind authenticated API reads or short-lived URLs, plus SQLite backups and a tested recovery procedure. Do not delete the VM without backing up its workspace.
+
+## Sources and watch allowance
+
+Sources has its own sidebar section, all 6,222 source records, search/state filters and a Watched only filter. Watch selections persist in SQLite. `BILLY_WATCH_LIMIT` sets the workspace allowance (default 10); the server enforces it transactionally, including repeated Watch requests. Unwatching frees a slot. This is a configurable entitlement mechanism, not a connected subscription or billing system. Watching saves intent only: scheduled polling, change detection and alerts are not connected yet. Manual source reads remain available independently.

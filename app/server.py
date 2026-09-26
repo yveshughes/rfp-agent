@@ -2,6 +2,10 @@
 import asyncio
 import base64
 import io
+import hashlib
+import http.client
+import ssl
+from datetime import date
 import ipaddress
 import json
 import logging
@@ -12,7 +16,7 @@ import sqlite3
 import time
 import uuid
 from contextlib import asynccontextmanager
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin, unquote
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import FileResponse, Response
@@ -27,6 +31,7 @@ DATA.mkdir(parents=True, exist_ok=True)
 SOURCE_FILE = Path(os.environ.get('BILLY_SOURCES', ROOT / 'rfpsonar-found-rfp-sources.json'))
 SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE.exists() else []
 DB = DATA / 'workspace.sqlite3'
+WATCH_LIMIT = int(os.environ.get('BILLY_WATCH_LIMIT', '10'))
 ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
 ALLOWED_ORIGINS = set(os.environ.get('BILLY_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081').split(','))
 
@@ -39,7 +44,12 @@ with db() as c:
     c.executescript('''CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, at REAL, kind TEXT, title TEXT, detail TEXT);
     CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, name TEXT, first_page INTEGER, last_page INTEGER, added REAL, pages TEXT);
     CREATE TABLE IF NOT EXISTS checks(source_id INTEGER PRIMARY KEY, checked REAL, url TEXT, title TEXT);
-    CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY, value TEXT);''')
+    CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY, value TEXT);
+    CREATE TABLE IF NOT EXISTS watches(source_id INTEGER PRIMARY KEY, added REAL);
+    CREATE TABLE IF NOT EXISTS rfps(id TEXT PRIMARY KEY, title TEXT, agency TEXT, url TEXT, status TEXT, deadline TEXT, notes TEXT, created REAL, updated REAL);''')
+    columns = {r['name'] for r in c.execute('PRAGMA table_info(documents)')}
+    for name, definition in {'rfp_id':'TEXT', 'source_url':'TEXT', 'sha256':'TEXT', 'total_pages':'INTEGER'}.items():
+        if name not in columns: c.execute(f'ALTER TABLE documents ADD COLUMN {name} {definition}')
 
 def save(key, value):
     with db() as c:
@@ -54,7 +64,7 @@ def event(kind, title, detail=''):
     with db() as c:
         c.execute('INSERT INTO events(at,kind,title,detail) VALUES (?,?,?,?)', (time.time(), kind, title, detail))
 
-async def public_url(url):
+async def public_addresses(url):
     """Reject local services, credentials, unusual ports and non-HTTP schemes."""
     try:
         p = urlparse(url)
@@ -66,9 +76,13 @@ async def public_url(url):
         addresses = await asyncio.get_running_loop().getaddrinfo(host, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
         if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
             raise ValueError()
-        return url
+        return [a[4][0] for a in addresses]
     except (ValueError, OSError):
         raise HTTPException(400, 'Only public HTTP(S) pages on standard ports are available in Billy’s browser.')
+
+async def public_url(url):
+    await public_addresses(url)
+    return url
 
 class Browser:
     def __init__(self):
@@ -227,15 +241,34 @@ async def local_access(request: Request, call_next):
 async def state():
     with db() as c:
         events = [dict(r) for r in c.execute('SELECT * FROM events ORDER BY id DESC LIMIT 24')]
-        docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added FROM documents ORDER BY added DESC')]
+        docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added,rfp_id,source_url,total_pages FROM documents ORDER BY added DESC')]
     return {'environment':ENVIRONMENT,'browser':{'ready':bool(b.page),'url':b.page.url if b.page else None,'controller':b.controller,'busy':b.busy,'status':b.status,'error':b.error,'pending':b.pending},'events':events,'documents':docs,'research':read('research'),'total':len(SOURCES),'policy':{'draft_forms':True,'submission':'approval_required'},'model':None}
 
 @app.get('/api/sources')
-async def sources(q: str='', state: str='', offset: int=0, limit: int=30):
+async def sources(q: str='', state: str='', offset: int=0, limit: int=30, watched: bool=False):
     if offset < 0 or not 1 <= limit <= 100: raise HTTPException(400, 'Invalid page')
-    rows = [r for r in SOURCES if (not state or r.get('state_code')==state) and (not q or q.lower() in (r.get('name','')+' '+r.get('state_code','')).lower())]
+    with db() as c: watching={r['source_id'] for r in c.execute('SELECT source_id FROM watches')}
+    rows = [r for r in SOURCES if (not watched or r['id'] in watching) and (not state or r.get('state_code')==state) and (not q or q.lower() in (r.get('name','')+' '+r.get('state_code','')).lower())]
     with db() as c: checks={r['source_id']:r['checked'] for r in c.execute('SELECT source_id,checked FROM checks')}
-    return {'total':len(rows),'indexed':len(SOURCES),'states':sorted(set(r.get('state_code','') for r in SOURCES)), 'rows':[dict(id=r['id'],name=r['name'],state=r.get('state_code'),url=r.get('procurement_url') or r.get('official_url'),checked=checks.get(r['id'])) for r in rows[offset:offset+limit]]}
+    return {'total':len(rows),'indexed':len(SOURCES),'watch_count':len(watching),'watch_limit':WATCH_LIMIT,'states':sorted(set(r.get('state_code','') for r in SOURCES)), 'rows':[dict(id=r['id'],name=r['name'],state=r.get('state_code'),url=r.get('procurement_url') or r.get('official_url'),checked=checks.get(r['id']),watched=r['id'] in watching) for r in rows[offset:offset+limit]]}
+
+class WatchRequest(BaseModel):
+    watched: bool
+
+@app.post('/api/sources/{source_id}/watch')
+async def watch_source(source_id: int, req: WatchRequest):
+    row=next((r for r in SOURCES if r['id']==source_id),None)
+    if not row: raise HTTPException(404,'Source not found')
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        existing=c.execute('SELECT 1 FROM watches WHERE source_id=?',(source_id,)).fetchone()
+        count=c.execute('SELECT COUNT(*) FROM watches').fetchone()[0]
+        if req.watched and not existing:
+            if count>=WATCH_LIMIT: raise HTTPException(409,f'Your workspace allows {WATCH_LIMIT} watched sources. Unwatch one before adding another.')
+            c.execute('INSERT INTO watches VALUES (?,?)',(source_id,time.time()))
+        elif not req.watched:
+            c.execute('DELETE FROM watches WHERE source_id=?',(source_id,))
+    return {'watched':req.watched}
 
 class ResearchRequest(BaseModel):
     source_id: int | None = None
@@ -321,25 +354,129 @@ async def approval(req: Approval):
     event('approval','Network action approved once' if req.approved else 'Network action declined', 'Repeat the intended action within 30 seconds.' if req.approved else '')
     return {'ok':True}
 
-@app.post('/api/documents')
-async def document(file: UploadFile=File(...), first_page: int=Form(1), last_page: int=Form(0)):
-    raw = await file.read(25*1024*1024+1)
-    if len(raw)>25*1024*1024: raise HTTPException(413,'Choose a PDF smaller than 25 MB.')
-    if not raw.startswith(b'%PDF'): raise HTTPException(400,'Choose a PDF document.')
-    def extract():
-        reader=PdfReader(io.BytesIO(raw)); end=last_page or len(reader.pages)
-        if first_page<1 or end<first_page or end>len(reader.pages) or end-first_page>99:
-            raise ValueError('Choose up to 100 pages within the PDF.')
-        pages=[{'page':i+1,'text':reader.pages[i].extract_text()[:60000]} for i in range(first_page-1,end)]
-        return end,pages
-    try: end,pages=await asyncio.wait_for(asyncio.to_thread(extract),timeout=40)
-    except Exception as exc: raise HTTPException(400,str(exc) or 'Could not extract this PDF.')
-    doc_id=uuid.uuid4().hex
-    (DATA / f'{doc_id}.pdf').write_bytes(raw)
+STATUSES = ('Researching','Drafting','Ready for review','Responded','Closed — won','Closed — lost','Not pursuing')
+
+class RFPInput(BaseModel):
+    title: str = Field(min_length=1,max_length=300)
+    agency: str = Field(default='',max_length=200)
+    url: str = Field(default='',max_length=2000)
+    status: str = 'Researching'
+    deadline: str = ''
+    notes: str = Field(default='',max_length=10000)
+
+
+def require_rfp(rfp_id):
+    with db() as c: row=c.execute('SELECT * FROM rfps WHERE id=?',(rfp_id,)).fetchone()
+    if not row: raise HTTPException(404,'RFP not found')
+    return dict(row)
+
+async def validate_rfp(req):
+    if not req.title.strip(): raise HTTPException(400,'Give this RFP a title.')
+    if req.status not in STATUSES: raise HTTPException(400,'Unknown RFP status')
+    if req.deadline:
+        try: date.fromisoformat(req.deadline)
+        except ValueError: raise HTTPException(400,'Use a valid deadline date.')
+    if req.url: await public_url(req.url)
+
+@app.get('/api/rfps')
+async def rfps():
     with db() as c:
-        c.execute('INSERT INTO documents VALUES (?,?,?,?,?,?)',(doc_id,Path(file.filename or 'proposal.pdf').name[:200],first_page,end,time.time(),json.dumps(pages)))
-    event('done','Previous response imported',f'{file.filename} · PDF pages {first_page}–{end}. Text extracted; claims still need review.')
-    return {'id':doc_id,'pages':len(pages)}
+        rows=[dict(r) for r in c.execute('SELECT rfps.*, (SELECT COUNT(*) FROM documents WHERE rfp_id=rfps.id) AS documents FROM rfps ORDER BY updated DESC')]
+    return {'rows':rows,'statuses':STATUSES}
+
+@app.post('/api/rfps')
+async def create_rfp(req: RFPInput):
+    await validate_rfp(req)
+    rfp_id=uuid.uuid4().hex; now=time.time()
+    with db() as c:
+        c.execute('INSERT INTO rfps VALUES (?,?,?,?,?,?,?,?,?)',(rfp_id,req.title.strip(),req.agency,req.url,req.status,req.deadline,req.notes,now,now))
+    event('done','RFP added to your pipeline',req.title)
+    return require_rfp(rfp_id)
+
+@app.post('/api/rfps/{rfp_id}')
+async def update_rfp(rfp_id: str, req: RFPInput):
+    old=require_rfp(rfp_id)
+    await validate_rfp(req)
+    with db() as c:
+        c.execute('UPDATE rfps SET title=?,agency=?,url=?,status=?,deadline=?,notes=?,updated=? WHERE id=?',(req.title.strip(),req.agency,req.url,req.status,req.deadline,req.notes,time.time(),rfp_id))
+    if old['status']!=req.status: event('status',f'RFP marked {req.status}',req.title)
+    return require_rfp(rfp_id)
+
+async def store_pdf(raw, name, first_page=1, last_page=0, rfp_id=None, source_url=None, automatic=False):
+    if rfp_id: require_rfp(rfp_id)
+    if len(raw)>25*1024*1024: raise HTTPException(413,'Choose a PDF smaller than 25 MB.')
+    if not raw.startswith(b'%PDF'): raise HTTPException(400,'This source did not return a PDF document.')
+    digest=hashlib.sha256(raw).hexdigest()
+    def extract():
+        reader=PdfReader(io.BytesIO(raw)); total=len(reader.pages)
+        end=last_page or (min(total,100) if automatic else total)
+        if first_page<1 or end<first_page or end>total or end-first_page>99:
+            raise ValueError('Choose up to 100 pages within the PDF.')
+        pages=[{'page':i+1,'text':(reader.pages[i].extract_text() or '')[:60000]} for i in range(first_page-1,end)]
+        return end,pages,total
+    try: end,pages,total=await asyncio.wait_for(asyncio.to_thread(extract),timeout=40)
+    except Exception: raise HTTPException(400,'Could not read this PDF. Check that it is unlocked and the selected range contains at most 100 pages.')
+    with db() as c:
+        duplicate=c.execute('SELECT id,first_page,last_page FROM documents WHERE sha256=? AND rfp_id IS ? AND first_page=? AND last_page=?',(digest,rfp_id,first_page,end)).fetchone()
+    if duplicate: return {'id':duplicate['id'],'pages':end-first_page+1,'existing':True}
+    doc_id=uuid.uuid4().hex
+    path=DATA / f'{doc_id}.pdf'
+    path.write_bytes(raw)
+    try:
+        with db() as c:
+            c.execute('INSERT INTO documents(id,name,first_page,last_page,added,pages,rfp_id,source_url,sha256,total_pages) VALUES (?,?,?,?,?,?,?,?,?,?)',(doc_id,Path(name).name[:200],first_page,end,time.time(),json.dumps(pages),rfp_id,source_url,digest,total))
+            if rfp_id: c.execute('UPDATE rfps SET updated=? WHERE id=?',(time.time(),rfp_id))
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    event('done','RFP original saved' if rfp_id else 'Previous response imported',f'{name} · PDF pages {first_page}–{end}. Complete original retained.')
+    return {'id':doc_id,'pages':len(pages),'existing':False}
+
+@app.post('/api/documents')
+async def document(file: UploadFile=File(...), first_page: int=Form(1), last_page: int=Form(0), rfp_id: str=Form('')):
+    raw = await file.read(25*1024*1024+1)
+    return await store_pdf(raw,file.filename or 'proposal.pdf',first_page,last_page,rfp_id or None)
+
+class PDFSource(BaseModel):
+    url: str = Field(max_length=2000)
+
+def fetch_pinned(url, address):
+    p=urlparse(url); port=p.port or (443 if p.scheme=='https' else 80)
+    # Connect to the vetted numeric address; preserve the original Host and TLS SNI.
+    conn=http.client.HTTPConnection(p.hostname,port,timeout=15)
+    try:
+        conn.sock=socket.create_connection((address,port),timeout=15)
+        if p.scheme=='https':
+            conn.sock=ssl.create_default_context().wrap_socket(conn.sock,server_hostname=p.hostname)
+        path=p.path or '/'
+        if p.query: path+='?'+p.query
+        conn.request('GET',path,headers={'User-Agent':'Billy-RFP-Research/1.0','Host':p.netloc})
+        response=conn.getresponse()
+        if response.status in (301,302,303,307,308) and response.getheader('Location'):
+            return None,urljoin(url,response.getheader('Location'))
+        if response.status>=400: raise HTTPException(400,f'The source returned HTTP {response.status}. Upload the original if you already have it.')
+        if int(response.getheader('Content-Length','0'))>25*1024*1024:
+            raise HTTPException(413,'Choose a PDF smaller than 25 MB.')
+        return response.read(25*1024*1024+1),None
+    finally: conn.close()
+
+async def fetch_pdf(url):
+    # Revalidate every redirect and never forward browser cookies or credentials.
+    for _ in range(6):
+        addresses=await public_addresses(url)
+        try: raw,redirect=await asyncio.wait_for(asyncio.to_thread(fetch_pinned,url,addresses[0]),timeout=25)
+        except HTTPException: raise
+        except Exception: raise HTTPException(400,'Could not download this source. Try uploading the original PDF.')
+        if not redirect: return raw,url
+        url=redirect
+    raise HTTPException(400,'The source redirected too many times.')
+
+@app.post('/api/rfps/{rfp_id}/documents/download')
+async def download_pdf(rfp_id: str, req: PDFSource):
+    require_rfp(rfp_id)
+    raw,url=await fetch_pdf(req.url)
+    name=Path(unquote(urlparse(url).path)).name or 'rfp-original.pdf'
+    return await store_pdf(raw,name,rfp_id=rfp_id,source_url=url,automatic=True)
 
 @app.get('/api/documents/{doc_id}')
 async def get_document(doc_id: str):
@@ -348,10 +485,12 @@ async def get_document(doc_id: str):
     result=dict(row); result['pages']=json.loads(result['pages']);return result
 
 @app.get('/api/documents/{doc_id}/pdf')
-async def document_pdf(doc_id: str):
+async def document_pdf(doc_id: str, download: bool=False):
     if len(doc_id)!=32 or any(ch not in '0123456789abcdef' for ch in doc_id): raise HTTPException(404)
     path=DATA/f'{doc_id}.pdf'
     if not path.exists(): raise HTTPException(404)
-    return FileResponse(path, media_type='application/pdf')
+    with db() as c: row=c.execute('SELECT name FROM documents WHERE id=?',(doc_id,)).fetchone()
+    if not row: raise HTTPException(404)
+    return FileResponse(path, media_type='application/pdf', filename=row['name'], content_disposition_type='attachment' if download else 'inline')
 
 app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')

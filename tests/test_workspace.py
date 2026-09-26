@@ -75,4 +75,76 @@ class WorkspaceTests(unittest.IsolatedAsyncioTestCase):
         server.save('research',record)
         self.assertEqual(server.read('research'),record)
 
+    async def test_rfp_lifecycle_original_and_download(self):
+        import io, hashlib
+        from pypdf import PdfWriter
+        writer=PdfWriter()
+        writer.add_blank_page(width=100,height=100)
+        writer.add_blank_page(width=100,height=100)
+        buf=io.BytesIO();writer.write(buf);raw=buf.getvalue()
+        r=await server.create_rfp(server.RFPInput(title='Environmental review',agency='Example city',deadline='2026-10-16'))
+        saved=await server.store_pdf(raw,'original.pdf',1,1,r['id'])
+        doc=await server.get_document(saved['id'])
+        self.assertEqual(doc['rfp_id'],r['id'])
+        self.assertEqual(doc['total_pages'],2)
+        self.assertEqual(len(doc['pages']),1)
+        self.assertEqual((server.DATA / (doc['id']+'.pdf')).read_bytes(),raw)
+        self.assertEqual(doc['sha256'],hashlib.sha256(raw).hexdigest())
+        duplicate=await server.store_pdf(raw,'same-file.pdf',1,1,r['id'])
+        self.assertEqual(saved['id'],duplicate['id'])
+        await server.update_rfp(r['id'],server.RFPInput(title=r['title'],status='Closed — won'))
+        self.assertEqual(server.require_rfp(r['id'])['status'],'Closed — won')
+        row=next(x for x in (await server.rfps())['rows'] if x['id']==r['id'])
+        self.assertEqual(row['documents'],1)
+        full=await server.store_pdf(raw,'original.pdf',1,0,r['id'])
+        self.assertNotEqual(full['id'],saved['id'])
+        self.assertEqual(full['pages'],2)
+        download=await server.document_pdf(doc['id'],True)
+        self.assertIn('attachment',download.headers['content-disposition'])
+        inline=await server.document_pdf(doc['id'],False)
+        self.assertIn('inline',inline.headers['content-disposition'])
+
+    async def test_bad_rfp_or_document_is_not_saved(self):
+        for req in [server.RFPInput(title='  '),server.RFPInput(title='Test',status='Made up'),server.RFPInput(title='Test',deadline='2026-02-30')]:
+            with self.assertRaises(server.HTTPException): await server.create_rfp(req)
+        with self.assertRaises(server.HTTPException): await server.store_pdf(b'<html>Access denied</html>','no.pdf')
+        with self.assertRaises(server.HTTPException): await server.store_pdf(b'%PDF','no.pdf',rfp_id='missing')
+        with self.assertRaises(server.HTTPException): await server.fetch_pdf('http://127.0.0.1/private.pdf')
+
+    async def test_pdf_redirect_cannot_reach_private_service(self):
+        async def addresses(url):
+            if '127.0.0.1' in url: raise server.HTTPException(400,'Private')
+            return ['93.184.216.34']
+        with patch.object(server,'public_addresses',addresses),patch.object(server,'fetch_pinned',return_value=(None,'http://127.0.0.1/private.pdf')) as fetch:
+            with self.assertRaises(server.HTTPException): await server.fetch_pdf('https://example.org/original.pdf')
+        fetch.assert_called_once_with('https://example.org/original.pdf','93.184.216.34')
+
+    async def test_pdf_fetch_connects_to_vetted_ip_not_hostname(self):
+        from unittest.mock import MagicMock
+        conn=MagicMock(); conn.getresponse.return_value.status=200
+        conn.getresponse.return_value.getheader.return_value='0'
+        conn.getresponse.return_value.read.return_value=b'%PDF-test'
+        with patch.object(server.http.client,'HTTPConnection',return_value=conn),patch.object(server.socket,'create_connection') as connect:
+            server.fetch_pinned('http://public.example/original.pdf','93.184.216.34')
+        connect.assert_called_once_with(('93.184.216.34',80),timeout=15)
+        self.assertEqual(conn.request.call_args.kwargs['headers']['Host'],'public.example')
+
+    async def test_watch_allowance_and_filter_persist(self):
+        records=[{'id':i,'name':f'City {i}','state_code':'CA','official_url':'https://example.org'} for i in range(3)]
+        with patch.object(server,'SOURCES',records),patch.object(server,'WATCH_LIMIT',2):
+            await server.watch_source(0,server.WatchRequest(watched=True))
+            await server.watch_source(0,server.WatchRequest(watched=True))
+            await server.watch_source(1,server.WatchRequest(watched=True))
+            with self.assertRaises(server.HTTPException) as error:
+                await server.watch_source(2,server.WatchRequest(watched=True))
+            self.assertEqual(error.exception.status_code,409)
+            result=await server.sources(watched=True)
+            self.assertEqual(result['watch_count'],2)
+            self.assertEqual({r['id'] for r in result['rows']},{0,1})
+            await server.watch_source(0,server.WatchRequest(watched=False))
+            await server.watch_source(2,server.WatchRequest(watched=True))
+            with server.db() as c:
+                self.assertEqual({r['source_id'] for r in c.execute('SELECT source_id FROM watches')},{1,2})
+                c.execute('DELETE FROM watches')
+
 if __name__=='__main__': unittest.main()
