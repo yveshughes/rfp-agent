@@ -528,7 +528,9 @@ from app.opportunities import register_opportunities
 opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_source = register_opportunities(app, db, SOURCES, b, fetch_pdf, store_pdf, event)
 
 from app.agent import BillyAgent
-agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b)
+from app.response_pdf import register_response_pdf
+export_response_pdf = register_response_pdf(app, db, DATA, rfp_workspace, event)
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf)
 
 async def watch_opportunities():
     while True:
