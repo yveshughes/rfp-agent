@@ -43,3 +43,11 @@ The root `.gitignore` allows only `site/`, `app/`, `tests/`, `deploy/`, this REA
 ## Assets and license
 
 Code: MIT. The decorative hero animation was generated with Higgsfield / Seedance 2.0 for this project and optimized for web playback. It is an illustration of the product vision, not evidence of an actual contract award. The GitHub mark comes from Primer Octicons; its MIT notice is included in `site/assets/github-LICENSE.txt`. No endorsement or affiliation with any example proposal owner is implied.
+
+### Billy's model-driven agent
+
+Main chat runs a persistent tool loop through **Vultr Serverless Inference**, using the configured `BILLY_VULTR_MODEL` (validated deployment: `glm-5.3`). It reads company facts, compares watched opportunities, inspects RFP originals, opens source pages in the VM browser, selects an RFP, asks for prior responses, records cited requirement gaps, extracts company facts, and saves versioned draft sections. Tool steps, provider/model identifiers, usage estimates, and user questions persist in SQLite. After a restart or failed request, continue from saved work.
+
+Place `VULTR_SERVERLESS_INFERENCE_API_KEY`, `BILLY_VULTR_MODEL=glm-5.3`, and `BILLY_INFERENCE_BUDGET_USD=100` in `/etc/billy/inference.env` (root-owned, mode 600). The service reads this optional file; never put credentials in the frontend or repository. The application estimates usage at the verified GLM 5.3 rates and reserves a conservative request allowance before calling inference. This is an application cap, not a Vultr account-wide billing limit.
+
+Agent-extracted facts retain their evidence or user-statement provenance; they are not independently verified. PDF response generation and delivery are not connected to this tool loop yet. No email, submission, shell, or arbitrary HTTP tool is exposed to the model. Existing manual/guided profile conversations remain separate from the main agent chat.

@@ -29,6 +29,7 @@ Environment=BILLY_DATA_DIR=/var/lib/billy/workspace
 Environment=BILLY_SOURCES=/var/lib/billy/rfp-sources.json
 Environment="BILLY_ENVIRONMENT=Vultr · Silicon Valley"
 Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/billy/inference.env
 Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/billy-browsers
 ExecStart=/opt/rfp-agent/.venv/bin/uvicorn app.server:app --host 127.0.0.1 --port 8787
 Restart=on-failure

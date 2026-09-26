@@ -220,6 +220,7 @@ async def document_work():
 async def lifespan(app):
     watcher = asyncio.create_task(watch_opportunities())
     yield
+    await agent.close()
     watcher.cancel()
     await asyncio.gather(watcher, return_exceptions=True)
     if b.task and not b.task.done():
@@ -525,6 +526,9 @@ discuss, discussion_config, transcribe = register_discussion(app, db, event, com
 
 from app.opportunities import register_opportunities
 opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_source = register_opportunities(app, db, SOURCES, b, fetch_pdf, store_pdf, event)
+
+from app.agent import BillyAgent
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b)
 
 async def watch_opportunities():
     while True:

@@ -1,3 +1,4 @@
+import {createAgentChat} from './agent-chat.js?v=1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
 import {createDiscussion} from './discuss.js';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
@@ -34,13 +35,14 @@ document.addEventListener('click',()=>queueMicrotask(rememberNavigation));
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
-let documentRequests=0, workspaceConnected=false, discussionState=null;
-const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState,chatOpen:currentView==='chats'});
+let documentRequests=0, workspaceConnected=false, discussionState=null, agentState=null;
+const updateBillyMotion=()=>billyMotion.update(state,{connected:workspaceConnected,documentRequests,discussionState:discussionState||agentState,chatOpen:currentView==='chats'});
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
 const companyProfile=createCompanyProfile({api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
+const agentChat=createAgentChat({api,esc,toast,openRFP,onState:value=>{agentState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
@@ -71,6 +73,7 @@ $('#collapse-nav').onclick=()=>{const collapsed=$('#workspace').classList.toggle
 function selectPanel(name){document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
 document.querySelectorAll('[data-panel]').forEach(button=>button.onclick=()=>selectPanel(button.dataset.panel));
 function addMessage(text, user=false, buttons=[]) {
+  if(companyProfile.hasChat()){$('#conversation').hidden=false;if($('#agent-conversation'))$('#agent-conversation').hidden=true;}
   $('#welcome').hidden=true;
   const div=document.createElement('div');div.className='message'+(user?' user':'');
   if(!user){const label=document.createElement('span');label.className='message-name';label.textContent='BILLY';div.append(label);}
@@ -81,14 +84,9 @@ function addMessage(text, user=false, buttons=[]) {
 }
 try { const messages=JSON.parse(sessionStorage.getItem('billy-chat-text')||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
 $('#chat-form').onsubmit=async e=>{
-  e.preventDefault();let input=$('#chat-input').value.trim();if(!input)return;if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';return;}$('#chat-input').value='';addMessage(input,true);
-  let q=input.replace(/^(find|search|look for|show me|show|open)\s+/i,'').replace(/\b(rfps?|opportunities|sources?|portals?)\b/gi,'').replace(/^\s*(in|for)\s+/i,'').trim();
-  const stateMatch=q.match(/,?\s+(CA|California)$/i);let stateCode=stateMatch?'CA':'';if(stateMatch)q=q.slice(0,stateMatch.index).trim();
-  if(/^california$/i.test(q)){stateCode='CA';q='';}
-  try { const results=await api('/sources?'+new URLSearchParams({q,state:stateCode,limit:'5'}));
-    if(!results.total){addMessage('I couldn’t find a source with that name. Try a city or agency, such as “Berkeley, CA.” For now, this conversation supports source lookup; open-ended drafting needs a model connection.');return;}
-    addMessage(`I found ${results.total.toLocaleString()} source ${results.total===1?'record':'records'}${stateCode?' in California':''}. Choose a portal and I’ll open it in my browser.`,false,results.rows.map(row=>({label:`${row.name}, ${row.state} ↗`,action:()=>startResearch({source_id:row.id},row.name)})));
-  }catch(err){toast(err.message);}
+  e.preventDefault();const input=$('#chat-input').value.trim();if(!input)return;
+  if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';return;}
+  if(await agentChat.send(input))$('#chat-input').value='';
 };
 $('#chat-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#chat-form').requestSubmit();}};
 $('#start-california').onclick=()=>{showView('sources');$('#state-filter').value='CA';offset=0;loadSources();};
@@ -121,7 +119,7 @@ function bindDocuments(){document.querySelectorAll('[data-document]').forEach(bt
 async function openDocument(id,page=null){try{const doc=await api('/documents/'+id);$('#document-title').textContent=doc.name;$('#document-pages').innerHTML=`<div class="document-actions"><a href="${API}/api/documents/${doc.id}/pdf${page?`#page=${page}`:''}" target="_blank" rel="noopener">Review original${page?` · page ${page}`:''} ↗</a><a href="${API}/api/documents/${doc.id}/pdf?download=true">Download original ↓</a></div><p class="muted">Extracted pages ${doc.first_page}–${doc.last_page}${doc.total_pages?` of ${doc.total_pages}`:''}. The complete original is retained.</p>`+doc.pages.map(p=>`<section class="pdf-page"><a href="${API}/api/documents/${doc.id}/pdf#page=${p.page}" target="_blank" rel="noopener noreferrer">Original PDF · page ${p.page} ↗</a><pre>${esc(p.text||'No extractable text on this page. Open the original PDF to inspect it.')}</pre></section>`).join('');$('#document-dialog').showModal();}catch(err){toast(err.message);}}
 $('#close-document').onclick=()=>$('#document-dialog').close();
 $('#proposal-file').onchange=()=>{$('#file-name').textContent=$('#proposal-file').files[0]?.name||'Up to 25 MB · up to 100 pages';};
-$('#import-form').onsubmit=async e=>{e.preventDefault();const file=$('#proposal-file').files[0];if(!file)return;const data=new FormData();data.append('file',file);data.append('first_page',$('#first-page').value||'1');data.append('last_page',$('#last-page').value||'0');$('#import-submit').disabled=true;$('#import-submit').textContent='Extracting pages…';try{const result=await api('/documents',data);await refresh();renderDocuments();toast(`Imported ${result.pages} pages. Original page references preserved.`);}catch(err){toast(err.message);}finally{$('#import-submit').disabled=false;$('#import-submit').textContent='Save document ↗';}};
+$('#import-form').onsubmit=async e=>{e.preventDefault();const file=$('#proposal-file').files[0];if(!file)return;const data=new FormData();data.append('file',file);data.append('first_page',$('#first-page').value||'1');data.append('last_page',$('#last-page').value||'0');$('#import-submit').disabled=true;$('#import-submit').textContent='Extracting pages…';try{const result=await api('/documents',data);await refresh();renderDocuments();if(agentChat.hasRun()){await agentChat.send(`Use the previous response I just uploaded: document ${result.id}. Read its extracted pages, identify reusable evidence, and compare it with the selected RFP.`);showView('chats');}toast(`Imported ${result.pages} pages. Original page references preserved.`);}catch(err){toast(err.message);}finally{$('#import-submit').disabled=false;$('#import-submit').textContent='Save document ↗';}};
 function renderArtifacts(){let html=(state?.documents||[]).map(d=>`<article class="document-card"><span class="eyebrow">${d.rfp_id?'RFP ORIGINAL':'IMPORTED RESPONSE'}</span><h3>${esc(d.name)}</h3><p>PDF pages ${d.first_page}–${d.last_page}. Extracted text and original file.</p><button data-document="${d.id}">Open pages ↗</button></article>`).join('');if(state?.research)html+=`<article class="research-card"><span class="eyebrow">SAVED RESEARCH</span><h3>${esc(state.research.title)}</h3><p>Captured ${esc(date(state.research.checked))} at ${esc(when(state.research.checked))}</p><button id="artifact-research">Open research ↗</button></article>`;$('#artifact-list').innerHTML=html||'<div class="empty-state">Your work will collect here. Import a response or read an RFP source to create your first artifact.</div>';bindDocuments();if($('#artifact-research'))$('#artifact-research').onclick=()=>{const r=state.research;$('#document-title').textContent=r.title;$('#document-pages').innerHTML=`<p><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a></p><pre style="white-space:pre-wrap">${esc(r.text)}</pre>`;$('#document-dialog').showModal();};}
 function approvalHTML(p){return `<article class="decision-card"><strong>${esc(p.title)}</strong><p>${esc(p.detail)}</p><p>${esc(p.url)}</p><div class="decision-actions"><button class="approve" data-approve="true">${p.kind==='form'?'Submit form':'Allow once'}</button><button data-approve="false">Decline</button></div></article>`;}
 function renderDecisions(){const pending=state?.browser.pending;$('#decision-count').textContent=pending?'1':'';$('#pending-decisions').innerHTML=pending?approvalHTML(pending):'<div class="empty-state">Nothing waiting on you.<br>Billy will pause here before sending or submitting.</div>';$('#dialog-approval').innerHTML=pending?approvalHTML(pending):'';document.querySelectorAll('[data-approve]').forEach(btn=>btn.onclick=async()=>{try{await api('/browser/approval',{id:pending.id,approved:btn.dataset.approve==='true'});await refresh();toast(btn.dataset.approve==='true'?'Approved once. Repeat the intended action within 30 seconds.':'Action declined.');}catch(err){toast(err.message);}});const approvals=(state?.events||[]).filter(e=>e.kind==='approval');$('#approval-history').innerHTML=approvals.length?approvals.map(e=>`<div class="history-item"><strong>${esc(e.title)}</strong>${esc(e.detail)}<br>${esc(when(e.at))}</div>`).join(''):'<div class="empty-state">Your approvals will be recorded here.</div>';}
@@ -133,7 +131,7 @@ async function refresh(){try{const next=await api('/state');state=next;workspace
   $('#mini-url').textContent=next.browser.url&&next.browser.url!=='about:blank'?next.browser.url:'A fresh page, ready for work';$('#browser-address').textContent=next.browser.url||'No page open';
   const mine=next.browser.controller==='you';$('#browser-owner').textContent=mine?'You are in control':'Billy is in control';$('#take-control').textContent=mine?'Hand back to Billy':'Take control';$('#take-control').disabled=next.browser.busy||!next.browser.ready;$('#remote-screen').classList.toggle('in-control',mine);$('#browser-note').textContent=mine?'Click the page to focus a field. Type below, or use your keyboard. Submit actions still require approval.':'You can watch Billy here. Take control to interact with this session.';
   ['#browser-back','#browser-reload','#browser-text','#send-browser-text','#browser-enter','#browser-scroll-up','#browser-scroll-down'].forEach(s=>$(s).disabled=!mine||next.browser.busy);
-  renderDecisions();if(currentView==='company')renderDocuments();if(currentView==='artifacts')renderArtifacts();if(currentView==='rfps'&&!$('#opportunity-feed').hidden)opportunityFeed.load();
+  agentChat.poll();renderDecisions();if(currentView==='company')renderDocuments();if(currentView==='artifacts')renderArtifacts();if(currentView==='rfps'&&!$('#opportunity-feed').hidden)opportunityFeed.load();
 }catch(err){$('#connection-notice').hidden=false;$('#connection-notice').textContent=local?'Billy’s workspace is not connected. Start the local service or reconnect the VM tunnel. Your saved work is retained.':'Open your connected workspace to use Billy’s browser and private documents.';workspaceConnected=false;updateBillyMotion();$('#backend-status').textContent='Disconnected';}}
 async function refreshFrame(){if(!state?.browser.ready||pendingFrame||document.hidden)return;pendingFrame=true;try{const res=await fetch(API+'/api/browser/frame');if(res.status!==200)return;const blob=await res.blob();const old=frameURL;frameURL=URL.createObjectURL(blob);$('#browser-thumbnail').src=frameURL;$('#browser-full').src=frameURL;$('#browser-thumbnail').hidden=false;$('#browser-empty').hidden=true;$('#full-empty').hidden=true;if(old)URL.revokeObjectURL(old);}catch{}finally{pendingFrame=false;}}
 function expandBrowser(){ $('#browser-dialog').showModal();refreshFrame(); }
