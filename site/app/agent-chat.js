@@ -29,7 +29,7 @@ export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDoc
     if(nearBottom)$('#chat-scroll').scrollTop=$('#chat-scroll').scrollHeight;
     if(lastStatus==='running'&&run.status!=='running')onSaved();lastStatus=run.status;
   }
-  async function poll(){if(polling)return;polling=true;try{snapshot=await api('/agent');snapshot.pdfs=await api('/response-pdfs');render();}catch{}finally{polling=false;}}
+  async function poll(){if(polling)return;polling=true;try{const previous=snapshot;snapshot=await api('/agent');try{snapshot.pdfs=await api('/response-pdfs');}catch{snapshot.pdfs=previous?.pdfs||[];}render();}catch{}finally{polling=false;}}
   async function send(text){
     if(sending||snapshot?.run?.status==='running'){toast('Billy is working. Wait for his next question.');return false;}
     sending=true;

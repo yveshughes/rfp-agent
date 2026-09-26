@@ -21,7 +21,12 @@ def render_response(title, sections):
     body=ParagraphStyle('Body',fontName='Times-Roman',fontSize=12,leading=14,spaceAfter=7)
     heading=ParagraphStyle('Heading',parent=body,fontName='Times-Bold',spaceBefore=9,keepWithNext=True)
     def text(value):
-        return escape(value.replace('\u2011','-').replace('\u2013','-').replace('\u2014','-'))
+        value=value.replace('\u2011','-').replace('\u2013','-').replace('\u2014','-')
+        try:value.encode('cp1252')
+        except UnicodeEncodeError:
+            raise ValueError('The review PDF font cannot render some characters. Keep original names intact; configure a Unicode font before exporting this response.') from None
+        if any(ord(c)<32 and c not in '\n\r\t' for c in value):raise ValueError('Remove unsupported control characters before PDF export.')
+        return escape(value)
     story=[Paragraph(text(title),heading),Spacer(1,8)]
     for section in sections:
         story.append(Paragraph(text(section['title']),heading))
@@ -37,20 +42,26 @@ def render_response(title, sections):
 
 def register_response_pdf(app,db,data,workspace,event):
     folder=Path(data)/'response-pdfs';folder.mkdir(parents=True,exist_ok=True)
-    with db() as c:c.execute('CREATE TABLE IF NOT EXISTS response_pdfs(id TEXT PRIMARY KEY,rfp_id TEXT,name TEXT,versions TEXT,pages INTEGER,created REAL)')
+    with db() as c:
+        c.execute('CREATE TABLE IF NOT EXISTS response_pdfs(id TEXT PRIMARY KEY,rfp_id TEXT,name TEXT,versions TEXT,pages INTEGER,created REAL,title TEXT)')
+        if 'title' not in {r[1] for r in c.execute('PRAGMA table_info(response_pdfs)')}:
+            c.execute('ALTER TABLE response_pdfs ADD COLUMN title TEXT')
 
     async def export(rfp_id):
         saved=await workspace(rfp_id)
         sections=saved['sections']
         if any(not s['body'].strip() for s in sections):raise ValueError('Save all three response sections before creating the review PDF.')
         versions={s['id']:s['version'] for s in sections}
-        digest=hashlib.sha256(json.dumps({'rfp':rfp_id,'sections':sections},sort_keys=True).encode()).hexdigest()[:32]
+        title=saved['rfp']['title']
+        digest=hashlib.sha256(json.dumps({'rfp':rfp_id,'title':title,'sections':sections},sort_keys=True).encode()).hexdigest()[:32]
         with db() as c:existing=c.execute('SELECT * FROM response_pdfs WHERE id=?',(digest,)).fetchone()
-        if existing:pages=existing['pages']
+        if existing:
+            if not (folder/(digest+'.pdf')).is_file():raise ValueError('The saved review PDF file is missing. Restore it from a workspace backup before reusing this artifact.')
+            pages=existing['pages']
         else:
             raw,pages=render_response(saved['rfp']['title'],sections)
             (folder/(digest+'.pdf')).write_bytes(raw)
-            with db() as c:c.execute('INSERT INTO response_pdfs VALUES (?,?,?,?,?,?)',(digest,rfp_id,'Response - review copy.pdf',json.dumps(versions),pages,time.time()))
+            with db() as c:c.execute('INSERT INTO response_pdfs VALUES (?,?,?,?,?,?,?)',(digest,rfp_id,'Response - review copy.pdf',json.dumps(versions),pages,time.time(),title))
             event('done','Response PDF ready for review',f'{pages} pages; review required before any submission.')
         return {'id':digest,'rfp_id':rfp_id,'name':'Response - review copy.pdf','pages':pages,'versions':versions,
                 'url':'/api/response-pdfs/'+digest,'review_required':True,
@@ -60,8 +71,11 @@ def register_response_pdf(app,db,data,workspace,event):
     async def list_pdfs():
         with db() as c:rows=[dict(r) for r in c.execute('SELECT * FROM response_pdfs ORDER BY created DESC')]
         for row in rows:
-            current=await workspace(row['rfp_id'])
-            row['stale']=json.loads(row['versions'])!={s['id']:s['version'] for s in current['sections']}
+            try:current=await workspace(row['rfp_id'])
+            except HTTPException as exc:
+                if exc.status_code!=404:raise
+                row['stale']=True
+            else:row['stale']=row['title']!=current['rfp']['title'] or json.loads(row['versions'])!={s['id']:s['version'] for s in current['sections']}
             row['url']='/api/response-pdfs/'+row['id']
         return rows
 

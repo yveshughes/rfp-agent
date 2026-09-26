@@ -1,10 +1,10 @@
 import io
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
 from fastapi import FastAPI
 from pypdf import PdfReader
-from app import server
 from app.response_pdf import register_response_pdf,render_response
 
 
@@ -12,9 +12,12 @@ class ResponsePDFTests(unittest.IsolatedAsyncioTestCase):
     async def test_immutable_export_and_stale_version(self):
         with tempfile.TemporaryDirectory() as folder:
             app=FastAPI()
+            def db():
+                c=sqlite3.connect(Path(folder)/'test.sqlite3');c.row_factory=sqlite3.Row;return c
             sections=[{'id':str(i),'title':'Section '+str(i),'body':'Evidence <quoted> & reviewed. [CONFIRM CURRENT RATES]','version':1} for i in range(1,4)]
-            async def workspace(_):return {'rfp':{'title':'Review test'},'sections':sections}
-            export=register_response_pdf(app,server.db,Path(folder),workspace,lambda *args:None)
+            rfp={'title':'Review test'}
+            async def workspace(_):return {'rfp':rfp,'sections':sections}
+            export=register_response_pdf(app,db,Path(folder),workspace,lambda *args:None)
             first=await export('pdf-test')
             self.assertEqual(first,await export('pdf-test'))
             original=(Path(folder)/'response-pdfs'/(first['id']+'.pdf')).read_bytes()
@@ -29,6 +32,12 @@ class ResponsePDFTests(unittest.IsolatedAsyncioTestCase):
             rows=await listing()
             self.assertTrue(next(r for r in rows if r['id']==first['id'])['stale'])
             self.assertFalse(next(r for r in rows if r['id']==second['id'])['stale'])
+            rfp['title']='Renamed opportunity'
+            renamed=await export('pdf-test')
+            self.assertNotEqual(second['id'],renamed['id'])
+            rows=await listing()
+            self.assertTrue(next(r for r in rows if r['id']==second['id'])['stale'])
+            self.assertFalse(next(r for r in rows if r['id']==renamed['id'])['stale'])
             sections[1]['body']=''
             with self.assertRaises(ValueError):await export('pdf-test')
 
@@ -37,3 +46,7 @@ class ResponsePDFTests(unittest.IsolatedAsyncioTestCase):
         pages=PdfReader(io.BytesIO(raw)).pages
         self.assertGreater(count,1)
         self.assertIn('END OF EVIDENCE',' '.join(pages[-1].extract_text().split()))
+
+    def test_unsupported_names_fail_instead_of_becoming_boxes(self):
+        with self.assertRaisesRegex(ValueError,'Keep original names intact'):
+            render_response('Review',[{'title':'Team','body':'Project lead: Łukasz; partner: 東京株式会社.'}])
