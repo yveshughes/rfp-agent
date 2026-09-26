@@ -1,0 +1,357 @@
+"""Billy's single-owner research workspace. Bind to loopback, never the public web."""
+import asyncio
+import base64
+import io
+import ipaddress
+import json
+import logging
+import os
+from pathlib import Path
+import socket
+import sqlite3
+import time
+import uuid
+from contextlib import asynccontextmanager
+from urllib.parse import urlparse
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from pypdf import PdfReader
+from playwright.async_api import async_playwright
+
+ROOT = Path(__file__).resolve().parent.parent
+DATA = Path(os.environ.get('BILLY_DATA_DIR', ROOT / '.billy'))
+DATA.mkdir(parents=True, exist_ok=True)
+SOURCE_FILE = Path(os.environ.get('BILLY_SOURCES', ROOT / 'rfpsonar-found-rfp-sources.json'))
+SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE.exists() else []
+DB = DATA / 'workspace.sqlite3'
+ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
+ALLOWED_ORIGINS = set(os.environ.get('BILLY_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081').split(','))
+
+def db():
+    c = sqlite3.connect(DB)
+    c.row_factory = sqlite3.Row
+    return c
+
+with db() as c:
+    c.executescript('''CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY, at REAL, kind TEXT, title TEXT, detail TEXT);
+    CREATE TABLE IF NOT EXISTS documents(id TEXT PRIMARY KEY, name TEXT, first_page INTEGER, last_page INTEGER, added REAL, pages TEXT);
+    CREATE TABLE IF NOT EXISTS checks(source_id INTEGER PRIMARY KEY, checked REAL, url TEXT, title TEXT);
+    CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY, value TEXT);''')
+
+def save(key, value):
+    with db() as c:
+        c.execute('INSERT OR REPLACE INTO state VALUES (?,?)', (key, json.dumps(value)))
+
+def read(key, default=None):
+    with db() as c:
+        row = c.execute('SELECT value FROM state WHERE key=?', (key,)).fetchone()
+    return json.loads(row['value']) if row else default
+
+def event(kind, title, detail=''):
+    with db() as c:
+        c.execute('INSERT INTO events(at,kind,title,detail) VALUES (?,?,?,?)', (time.time(), kind, title, detail))
+
+async def public_url(url):
+    """Reject local services, credentials, unusual ports and non-HTTP schemes."""
+    try:
+        p = urlparse(url)
+        if p.scheme not in ('https', 'http') or not p.hostname or p.username or p.password or p.port not in (None,80,443):
+            raise ValueError()
+        host = p.hostname.lower().rstrip('.')
+        if host == 'localhost' or host.endswith(('.localhost','.local','.internal')):
+            raise ValueError()
+        addresses = await asyncio.get_running_loop().getaddrinfo(host, p.port or (443 if p.scheme == 'https' else 80), type=socket.SOCK_STREAM)
+        if not addresses or any(not ipaddress.ip_address(a[4][0]).is_global for a in addresses):
+            raise ValueError()
+        return url
+    except (ValueError, OSError):
+        raise HTTPException(400, 'Only public HTTP(S) pages on standard ports are available in Billy’s browser.')
+
+class Browser:
+    def __init__(self):
+        self.pw = self.browser = self.page = None
+        self.lock = asyncio.Lock()
+        self.controller = 'billy'
+        self.busy = False
+        self.status = 'Ready for a source'
+        self.pending = None
+        self.allowed_write = None
+        self.image = None
+        self.task = None
+        self.verified_hosts = {}
+        self.error = None
+        self.action_at = 0
+
+    async def start(self):
+        if self.page and not self.page.is_closed(): return
+        self.pw = await async_playwright().start()
+        try:
+            self.browser = await self.pw.chromium.launch(headless=True, chromium_sandbox=True, args=['--disable-dev-shm-usage','--disable-background-networking'])
+        except Exception:
+            await self.pw.stop()
+            self.pw = None
+            raise RuntimeError('The browser could not start. Its runtime needs attention; your saved work is retained.')
+        context = await self.browser.new_context(viewport={'width':1280,'height':800}, accept_downloads=False, service_workers='block')
+        await context.route('**/*', self.route)
+        await context.route_web_socket('**/*', lambda ws: ws.close())
+        await context.expose_binding('billyRequestFormApproval', self.form_approval)
+        await context.add_init_script("""document.addEventListener('submit', event => {
+            if (window.__billySubmitOnce) { window.__billySubmitOnce = false; return; }
+            event.preventDefault(); event.stopImmediatePropagation();
+            const form = event.target, submitter = event.submitter;
+            window.__billyResumeForm = () => {
+                window.__billySubmitOnce = true;
+                form.requestSubmit(submitter || undefined);
+            };
+            window.billyRequestFormApproval({url: form.action || location.href,
+                method: (form.method || 'GET').toUpperCase()});
+        }, true);""")
+        self.page = await context.new_page()
+        self.page.on('dialog', lambda dialog: dialog.dismiss())
+        context.on('page', lambda page: asyncio.create_task(page.close()) if self.page and page != self.page else None)
+
+    async def form_approval(self, source, form):
+        self.pending = {'id': uuid.uuid4().hex, 'kind':'form',
+            'title':'Submit this form?',
+            'detail':'The form is filled, but has not been submitted. Review the browser before approving.',
+            'url':str(form.get('url',''))[:2000], 'method':str(form.get('method','GET'))[:10]}
+        event('decision','Form submission paused','Waiting for explicit approval.')
+
+    async def route(self, route):
+        req = route.request
+        try:
+            host = urlparse(req.url).netloc
+            if self.verified_hosts.get(host, 0) < time.time()-30:
+                await public_url(req.url)
+                self.verified_hosts[host] = time.time()
+            elif urlparse(req.url).scheme not in ('http','https'):
+                raise ValueError()
+            if req.method not in ('GET','HEAD','OPTIONS'):
+                signature = (req.method, req.url)
+                if self.allowed_write and self.allowed_write[:2] == signature and self.allowed_write[2] > time.time():
+                    self.allowed_write = None
+                else:
+                    same_site = self.page and urlparse(req.url).hostname == urlparse(self.page.url).hostname
+                    recent_action = time.time() - self.action_at < 4
+                    if self.controller != 'you' or not same_site or not recent_action or self.pending:
+                        await route.abort()
+                        return
+                    self.pending = {'id':uuid.uuid4().hex,'kind':'submission','title':'Approve this network action?', 'detail':f'{req.method} to {urlparse(req.url).hostname}. Billy paused it. Approve once, then repeat the action in the browser.', 'url': req.url, 'method':req.method}
+                    event('decision', 'A site action needs approval', f'{req.method} {urlparse(req.url).hostname}')
+                    await route.abort()
+                    return
+            await route.continue_()
+        except Exception:
+            await route.abort()
+
+    async def capture(self):
+        if not self.page: return
+        try: self.image = await self.page.screenshot(type='jpeg', quality=65, timeout=4000, animations='disabled')
+        except Exception: pass
+
+    async def research(self, url, source_id=None):
+        self.busy = True
+        self.error = None
+        self.status = 'Opening the source'
+        started = time.time()
+        event('working', 'Opening a real browser', url)
+        try:
+            async with self.lock:
+                await self.start()
+                self.verified_hosts.clear()
+                response = await self.page.goto(url, wait_until='domcontentloaded', timeout=35000)
+                await self.page.wait_for_timeout(800)
+                await self.capture()
+                if response and response.status >= 400: raise RuntimeError(f'The portal returned HTTP {response.status}. You can inspect it or try again.')
+                self.status = 'Reading the page'
+                text = await self.page.locator('body').inner_text(timeout=8000)
+                title = await self.page.title()
+                links = await self.page.locator('a[href]').evaluate_all("els => els.map(a=>({title:a.innerText.trim(),url:a.href})).filter(a=>a.title && /^https?:/.test(a.url))")
+                unique = {}
+                for link in links:
+                    if any(word in (link['title']+' '+link['url']).lower() for word in ('rfp','proposal','environmental','solicitation','bid')):
+                        unique.setdefault(link['url'], {'title':link['title'][:200], 'url':link['url']})
+                result = {'url':self.page.url,'title':title,'text':text[:50000],'links':list(unique.values())[:30],'checked':time.time(),'seconds':round(time.time()-started,1),'source_id':source_id}
+                save('research', result)
+                if source_id:
+                    with db() as c: c.execute('INSERT OR REPLACE INTO checks VALUES (?,?,?,?)', (source_id,time.time(),self.page.url,title))
+                self.status = 'Ready for your next decision'
+                event('done', 'Page read and saved', f'{title} · {len(text):,} characters · {result["seconds"]}s')
+        except Exception as exc:
+            logging.exception('Research failed')
+            self.error = str(exc)[:450]
+            self.status = 'Needs your attention'
+            event('error', 'Could not finish reading this page', self.error)
+            await self.capture()
+        finally:
+            self.busy = False
+
+b = Browser()
+
+@asynccontextmanager
+async def lifespan(app):
+    yield
+    if b.task and not b.task.done(): b.task.cancel()
+    if b.browser: await b.browser.close()
+    if b.pw: await b.pw.stop()
+
+app = FastAPI(lifespan=lifespan)
+
+@app.middleware('http')
+async def local_access(request: Request, call_next):
+    # This service is reached locally or through an SSH tunnel, not public nginx.
+    host = request.headers.get('host','').split(':')[0]
+    if host not in ('localhost','127.0.0.1','testserver'):
+        return Response('Use the local workspace connection.', status_code=403)
+    origin = request.headers.get('origin')
+    if origin and origin not in ALLOWED_ORIGINS:
+        return Response('Origin not allowed', status_code=403)
+    if request.method not in ('GET','HEAD','OPTIONS') and request.headers.get('x-billy-client') != 'workspace':
+        return Response('Workspace request header required', status_code=403)
+    if request.method == 'OPTIONS':
+        response = Response(status_code=204)
+    else:
+        response = await call_next(request)
+    if origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Vary'] = 'Origin'
+        response.headers['Access-Control-Allow-Headers'] = 'content-type,x-billy-client'
+        response.headers['Access-Control-Allow-Methods'] = 'GET,POST,OPTIONS'
+    response.headers['Cache-Control'] = 'no-store' if request.url.path.startswith('/api/') else 'no-cache'
+    return response
+
+@app.get('/api/state')
+async def state():
+    with db() as c:
+        events = [dict(r) for r in c.execute('SELECT * FROM events ORDER BY id DESC LIMIT 24')]
+        docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added FROM documents ORDER BY added DESC')]
+    return {'environment':ENVIRONMENT,'browser':{'ready':bool(b.page),'url':b.page.url if b.page else None,'controller':b.controller,'busy':b.busy,'status':b.status,'error':b.error,'pending':b.pending},'events':events,'documents':docs,'research':read('research'),'total':len(SOURCES),'policy':{'draft_forms':True,'submission':'approval_required'},'model':None}
+
+@app.get('/api/sources')
+async def sources(q: str='', state: str='', offset: int=0, limit: int=30):
+    if offset < 0 or not 1 <= limit <= 100: raise HTTPException(400, 'Invalid page')
+    rows = [r for r in SOURCES if (not state or r.get('state_code')==state) and (not q or q.lower() in (r.get('name','')+' '+r.get('state_code','')).lower())]
+    with db() as c: checks={r['source_id']:r['checked'] for r in c.execute('SELECT source_id,checked FROM checks')}
+    return {'total':len(rows),'indexed':len(SOURCES),'states':sorted(set(r.get('state_code','') for r in SOURCES)), 'rows':[dict(id=r['id'],name=r['name'],state=r.get('state_code'),url=r.get('procurement_url') or r.get('official_url'),checked=checks.get(r['id'])) for r in rows[offset:offset+limit]]}
+
+class ResearchRequest(BaseModel):
+    source_id: int | None = None
+    url: str | None = None
+
+@app.post('/api/research')
+async def research(req: ResearchRequest):
+    if b.busy: raise HTTPException(409, 'Billy is already reading a page.')
+    if b.controller=='you': raise HTTPException(409, 'Hand the browser back to Billy first.')
+    if req.source_id is not None:
+        row = next((r for r in SOURCES if r['id']==req.source_id), None)
+        if not row: raise HTTPException(404, 'Source not found')
+        url = row.get('procurement_url') or row.get('official_url')
+    else:
+        result = read('research',{}) or {}
+        allowed = {r['url'] for r in result.get('links',[])} | {result.get('url')}
+        if req.url not in allowed: raise HTTPException(400, 'Choose a link from the saved page.')
+        url = req.url
+    await public_url(url)
+    b.busy = True
+    b.task = asyncio.create_task(b.research(url,req.source_id))
+    return {'started':True}
+
+@app.get('/api/browser/frame')
+async def frame():
+    if b.page:
+        if b.busy: await b.capture()
+        else:
+            async with b.lock: await b.capture()
+    if not b.image: return Response(status_code=204)
+    return Response(b.image,media_type='image/jpeg')
+
+class ControlRequest(BaseModel):
+    controller: str
+
+@app.post('/api/browser/control')
+async def control(req: ControlRequest):
+    if req.controller not in ('you','billy'): raise HTTPException(400,'Unknown controller')
+    if b.busy: raise HTTPException(409,'Wait for the current page read to finish.')
+    b.controller = req.controller
+    event('control', 'You took control' if req.controller=='you' else 'Browser handed back to Billy')
+    return {'controller':b.controller}
+
+class BrowserAction(BaseModel):
+    kind: str
+    x: float=Field(default=0,ge=0,le=1280)
+    y: float=Field(default=0,ge=0,le=800)
+    text: str=Field(default='',max_length=10000)
+    delta: int=Field(default=0,ge=-2000,le=2000)
+
+@app.post('/api/browser/action')
+async def action(req: BrowserAction):
+    if b.controller!='you' or b.busy or not b.page: raise HTTPException(409,'Take control of the ready browser first.')
+    async with b.lock:
+        b.action_at = time.time()
+        if req.kind=='click': await b.page.mouse.click(req.x,req.y)
+        elif req.kind=='type': await b.page.keyboard.insert_text(req.text)
+        elif req.kind=='key' and req.text in ('Enter','Tab','Backspace','Escape','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ControlOrMeta+A'):
+            await b.page.keyboard.press(req.text)
+        elif req.kind=='scroll': await b.page.mouse.wheel(0,req.delta)
+        elif req.kind=='back': await b.page.go_back(wait_until='domcontentloaded',timeout=15000)
+        elif req.kind=='reload': await b.page.reload(wait_until='domcontentloaded',timeout=15000)
+        else: raise HTTPException(400,'Unknown browser action')
+        await b.capture()
+    return {'ok':True}
+
+class Approval(BaseModel):
+    id: str
+    approved: bool
+
+@app.post('/api/browser/approval')
+async def approval(req: Approval):
+    pending = b.pending
+    if not pending or pending['id']!=req.id: raise HTTPException(409,'This request is no longer pending.')
+    if req.approved:
+        await public_url(pending['url'])
+        b.allowed_write=(pending['method'],pending['url'],time.time()+30)
+        if pending['kind']=='form':
+            await b.page.evaluate('() => window.__billyResumeForm?.()')
+    elif pending['kind']=='form' and b.page:
+        await b.page.evaluate('() => { window.__billyResumeForm = null; }')
+    b.pending=None
+    event('approval','Network action approved once' if req.approved else 'Network action declined', 'Repeat the intended action within 30 seconds.' if req.approved else '')
+    return {'ok':True}
+
+@app.post('/api/documents')
+async def document(file: UploadFile=File(...), first_page: int=Form(1), last_page: int=Form(0)):
+    raw = await file.read(25*1024*1024+1)
+    if len(raw)>25*1024*1024: raise HTTPException(413,'Choose a PDF smaller than 25 MB.')
+    if not raw.startswith(b'%PDF'): raise HTTPException(400,'Choose a PDF document.')
+    def extract():
+        reader=PdfReader(io.BytesIO(raw)); end=last_page or len(reader.pages)
+        if first_page<1 or end<first_page or end>len(reader.pages) or end-first_page>99:
+            raise ValueError('Choose up to 100 pages within the PDF.')
+        pages=[{'page':i+1,'text':reader.pages[i].extract_text()[:60000]} for i in range(first_page-1,end)]
+        return end,pages
+    try: end,pages=await asyncio.wait_for(asyncio.to_thread(extract),timeout=40)
+    except Exception as exc: raise HTTPException(400,str(exc) or 'Could not extract this PDF.')
+    doc_id=uuid.uuid4().hex
+    (DATA / f'{doc_id}.pdf').write_bytes(raw)
+    with db() as c:
+        c.execute('INSERT INTO documents VALUES (?,?,?,?,?,?)',(doc_id,Path(file.filename or 'proposal.pdf').name[:200],first_page,end,time.time(),json.dumps(pages)))
+    event('done','Previous response imported',f'{file.filename} · PDF pages {first_page}–{end}. Text extracted; claims still need review.')
+    return {'id':doc_id,'pages':len(pages)}
+
+@app.get('/api/documents/{doc_id}')
+async def get_document(doc_id: str):
+    with db() as c: row=c.execute('SELECT * FROM documents WHERE id=?',(doc_id,)).fetchone()
+    if not row: raise HTTPException(404,'Document not found')
+    result=dict(row); result['pages']=json.loads(result['pages']);return result
+
+@app.get('/api/documents/{doc_id}/pdf')
+async def document_pdf(doc_id: str):
+    if len(doc_id)!=32 or any(ch not in '0123456789abcdef' for ch in doc_id): raise HTTPException(404)
+    path=DATA/f'{doc_id}.pdf'
+    if not path.exists(): raise HTTPException(404)
+    return FileResponse(path, media_type='application/pdf')
+
+app.mount('/', StaticFiles(directory=ROOT/'site',html=True),name='site')

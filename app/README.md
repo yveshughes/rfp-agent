@@ -1,0 +1,47 @@
+# Billy workspace
+
+A single-owner app with a five-section UI and a shared Chromium research browser. The API persists source checks, page text, PDF imports and activity in SQLite. Source lookup in Chats is deterministic; open-ended chat, semantic matching, proposal drafting and voice editing still need a model integration.
+
+## Run on this Mac
+
+```sh
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r app/requirements.txt
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m uvicorn app.server:app --host 127.0.0.1 --port 8081
+```
+
+Open http://localhost:8081/app/. If the static site is already running on localhost:8080, its app UI uses localhost:8081 for the API. Provide the original source JSON through `BILLY_SOURCES` or at the ignored project-root path `rfpsonar-found-rfp-sources.json`. It is not bundled in this public repo. Runtime state defaults to the ignored `.billy/` directory; override with `BILLY_DATA_DIR`.
+
+## Vultr service and local access
+
+`deploy/install-app.sh` installs a non-root `billy` systemd service, binding only to `127.0.0.1:8787`. Put the private source JSON at `/var/lib/billy/rfp-sources.json`, readable only by `billy`. Browser binaries are root-owned under `/opt/billy-browsers`. Following [Ubuntu’s per-application namespace guidance](https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces), a specific AppArmor profile permits the pinned Chromium binary to create its sandbox namespaces; the global namespace restriction is left enabled. Bump the profile path when upgrading the pinned browser.
+
+Connect from the Mac with the server's existing authorized SSH login:
+
+```sh
+ssh -N -L 127.0.0.1:8081:127.0.0.1:8787 root@YOUR_SERVER_IP
+```
+
+Then open http://localhost:8081/app/, or use the local static UI at http://localhost:8080/app/. The browser, imported PDFs and database are on Vultr when using this tunnel. No new publicly reachable API port is needed. Do not proxy this API to public nginx until authenticated HTTPS/NetBird access and workspace authorization have been implemented. There is one shared workspace, not tenant isolation.
+
+## Control and approval behavior
+
+- Billy opens the source selected by the user and extracts visible page text and relevant links. He does not autonomously fill forms yet.
+- Take control enables click, type, keyboard and scrolling. Hand back releases the session to source-reading jobs.
+- Normal form submissions are intercepted before navigation, including GET forms. Explicit approval resumes that captured form once.
+- Other non-read network requests are blocked unless explicitly approved for one exact method and URL, expiring after 30 seconds. Background cross-site writes are blocked without filling the decision queue with analytics notices.
+- The network request gate is conservative; it is not a semantic classifier for every site's possible side effects. GET endpoints and custom JavaScript workflows are not universally guaranteed read-only. Do not use this initial browser for authenticated procurement submissions or sensitive accounts until portal-specific controls are tested.
+- Requests to private/reserved addresses, unusual ports and non-HTTP(S) URLs are rejected. WebSockets and service workers are disabled. These checks and Chromium's sandbox are defense in depth, not a claim of complete hostile-code isolation or immunity to DNS rebinding.
+- Use trusted demo PDFs for now. PDF size and page count are bounded, but extraction runs in a backend thread; a timeout does not terminate that thread. Process isolation/resource limits are needed before accepting hostile uploads.
+
+The browser context is temporary and discarded on service restart. Documents, page captures and events persist. A 403 is an error, not a verified source. East Palo Alto's public RFP page was read successfully in the first integration check; Berkeley returned 403 from both Mac and VM browser checks.
+
+## Validation
+
+```sh
+.venv/bin/python -m unittest discover -s tests -v
+node --check site/app/workspace.js
+```
+
+The directory-count integration check requires the private source file and skips when it is absent. Tests cover California/Berkeley disambiguation, pagination, private-address rejection, browser ownership, one-use approvals and persisted research metadata.

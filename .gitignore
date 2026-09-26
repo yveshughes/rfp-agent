@@ -5,6 +5,8 @@
 !/LICENSE
 !/site/
 !/deploy/
+!/app/
+!/tests/
 
 # Never publish credentials, local state, or editor files.
 **/.env

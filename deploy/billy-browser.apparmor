@@ -1,0 +1,7 @@
+# Ubuntu requires an explicit user-namespace allowance for Chromium's sandbox.
+# This exact binary is installed and owned by root, not writable by the service user.
+abi <abi/4.0>,
+include <tunables/global>
+profile billy-chromium /opt/billy-browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell flags=(unconfined) {
+  userns,
+}

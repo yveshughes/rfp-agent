@@ -6,9 +6,9 @@ Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
 
 ## Current status
 
-This repository contains the **pitch page and technical overview only**. The application, AI processing, voice editing, and NetBird integration are not implemented yet. The page illustrates the intended workflow; it is not an interactive application screenshot.
+The pitch and technical reference are publicly hosted on Vultr. The first **Billy workspace** now includes the five-section UI, all-source lookup, a real Chromium session with watch/take-control controls, PDF page-range import, saved research, activity and approval handling. Its private API and browser run on Vultr, reached from the Mac through an SSH tunnel. See [app setup and limitations](app/README.md).
 
-The “Live Demo” link opens `/app/` in a new tab. That route is a static workspace entry page, not a functioning application. Replace the demo links when the application is ready. Public pages omit temporary development banners; that does not change the implementation status documented here.
+Open-ended model chat, semantic evidence matching, proposal generation, voice revision and NetBird integration are not connected yet. The public `/app/` entry remains separate from the locally connected workspace until authenticated public ingress is ready. Source lookup uses actual directory records; the animation is decorative and does not indicate a completed agent action.
 
 The 6,222 figure is the size of the source directory collected for this project. It does not describe verified portals, active RFPs, or completed agent searches. The raw directory and research documents are not distributed in this repository.
 
@@ -38,7 +38,7 @@ The technical page’s **Key decisions** section (`/technical/#decisions`) recor
 
 ## Repository boundaries
 
-The root `.gitignore` allows only `site/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
+The root `.gitignore` allows only `site/`, `app/`, `tests/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. Audit the staged file list before every publication.
 
 ## Assets and license
 
