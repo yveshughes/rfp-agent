@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Technical details — RFP Agent</title>
   <meta name="description" content="The RFP Agent workflow, intended architecture, and current implementation status.">
-  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
+  <link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css?v=demo-story-1">
 </head>
 <body>
   <a class="skip" href="#main">Skip to content</a>
@@ -20,47 +20,82 @@
         <h1>Technical<br> details.</h1>
         <nav class="section-tabs" aria-label="Technical sections">
           <a id="tab-workflow" href="#workflow"><span>01</span> Workflow <span class="tab-arrow" aria-hidden="true">↗</span></a>
-          <a id="tab-architecture" href="#architecture"><span>02</span> Architecture <span class="tab-arrow" aria-hidden="true">↗</span></a>
-          <a id="tab-decisions" href="#decisions"><span>03</span> Key decisions <span class="tab-arrow" aria-hidden="true">↗</span></a>
-          <a id="tab-demo" href="#demo"><span>04</span> Demo <span class="tab-arrow" aria-hidden="true">↗</span></a>
+          <a id="tab-architecture" href="#architecture"><span>02</span> Why Vultr <span class="tab-arrow" aria-hidden="true">↗</span></a>
+          <a id="tab-netbird" href="#netbird"><span>03</span> Why NetBird <span class="tab-arrow" aria-hidden="true">↗</span></a>
+          <a id="tab-demo" href="#demo"><span>04</span> Demo setup <span class="tab-arrow" aria-hidden="true">↗</span></a>
+          <a id="tab-decisions" href="#decisions"><span>05</span> Technical Q&A <span class="tab-arrow" aria-hidden="true">↗</span></a>
         </nav>
       </aside>
       <div class="tech-content">
       <div id="workflow" class="tech-panel" aria-labelledby="tab-workflow">
-      <section class="workflow-section" aria-labelledby="chart-title">
-        <div class="chart-header"><div><span class="number">THE END-TO-END WORKFLOW</span><h2 id="chart-title">From opportunity to a response you own.</h2></div><a class="text-link" href="/assets/workflow.mmd" target="_blank" rel="noopener noreferrer">Mermaid source ↗</a></div>
-        <p class="chart-summary">The agent prepares and revises. The owner approves and submits. Each version retains the evidence and open questions behind it.</p>
-        <div class="diagram-scroll" tabindex="0" role="region" aria-label="Workflow diagram; scroll horizontally on smaller screens"><div id="workflow-chart"></div><p id="chart-status" role="status">Loading workflow diagram…</p></div>
-        <p class="chart-key"><span><i class="key-agent"></i> Agent work</span><span><i class="key-human"></i> Human control</span><span><i class="key-output"></i> Deliverable</span></p>
-      </section>
-      <section class="tech-section" aria-labelledby="workflow-title">
-        <div class="section-label"><span class="number">01 / THE WORKFLOW</span><h2 id="workflow-title">Find. Prepare. Review.</h2></div>
-        <ol class="steps">
-          <li><span>01</span><div><h3>Import your company’s experience</h3><p>Extract reusable evidence from previous responses. Keep each claim connected to its source document and page.</p></div></li>
-          <li><span>02</span><div><h3>Find relevant opportunities</h3><p>Browse sources by location and agency. Read the actual RFP, extract requirements, and compare them with the company’s evidence.</p></div></li>
-          <li><span>03</span><div><h3>Prepare an honest draft</h3><p>Use supported experience, cite it, and flag qualifications that still need confirmation. Missing evidence stays visible.</p></div></li>
-          <li><span>04</span><div><h3>Revise by voice. Approve the changes.</h3><p>Turn a spoken request into a proposed edit. Inspect the diff, apply or undo, and export a draft for human review and submission.</p></div></li>
-        </ol>
-      </section>
+        <section class="workflow-section" aria-labelledby="chart-title">
+          <div class="chart-header"><div><span class="number">THE END-TO-END DEMO</span><h2 id="chart-title">Billy does the work.<br>You make the call.</h2></div></div>
+          <p class="tech-lead">Vultr gives Billy a persistent place to work. NetBird gives the right person secure access to that work.</p>
+          <ol class="steps demo-steps">
+            <li><span>01</span><div><h3>Ask Billy to find work</h3><p>“Find RFPs that fit my business and help me apply.” Start with basic company capabilities; text and voice share the same workflow.</p></div></li>
+            <li><span>02</span><div><h3>Discover the Berkeley opportunity</h3><p>Billy reviews watched sources, explains the match, and begins preparing a response in his Vultr browser.</p></div></li>
+            <li><span>03</span><div><h3>Bring your previous response</h3><p>Billy asks for past work. Import the PDF, preserve the original, and connect reusable claims to source pages.</p></div></li>
+            <li><span>04</span><div><h3>Discuss what’s missing</h3><p>Resolve questions in chat. Answers update company knowledge, response sections, and follow-up tasks. Unsupported requirements stay visible.</p></div></li>
+            <li><span>05</span><div><h3>Review the response</h3><p>A PDF appears in chat. Open it, request changes, then approve the exact document and destination.</p></div></li>
+            <li><span>06</span><div><h3>Let Billy carry out the approved action</h3><p>Watch his browser prepare delivery and capture the result. The Berkeley demo uses a controlled email recipient.</p></div></li>
+          </ol>
+          <p class="detail-note">This is the target demo flow. See Demo setup for the working foundation and remaining integrations.</p>
+          <div class="chart-header"><h2>The workflow, connected.</h2><a class="text-link" href="/assets/workflow.mmd" target="_blank" rel="noopener noreferrer">Mermaid source ↗</a></div>
+          <div class="diagram-scroll" tabindex="0" role="region" aria-label="Workflow diagram; scroll horizontally on smaller screens"><div id="workflow-chart"></div><p id="chart-status" role="status">Loading workflow diagram…</p></div>
+          <p class="chart-key"><span><i class="key-agent"></i> Agent work</span><span><i class="key-human"></i> Human control</span><span><i class="key-output"></i> Deliverable</span></p>
+        </section>
       </div>
       <div id="architecture" class="tech-panel" aria-labelledby="tab-architecture">
-      <section class="tech-section" aria-labelledby="architecture-title">
-        <div class="section-label"><span class="number">02 / THE ARCHITECTURE</span><h2 id="architecture-title">Built around Vultr.</h2><p>Planned for the Future of Work track, with NetBird for controlled access.</p></div>
-        <div class="architecture">
-          <div class="arch-row"><span class="tech-badge">VULTR</span><div><h3>The system of record and control</h3><p>A VM hosts the API, background jobs, saved evidence, proposal versions, and generated files. Work persists across sessions.</p></div></div>
-          <div class="arch-row"><span class="tech-badge">AI</span><div><h3>Reasoning with bounded tools</h3><p>The backend retrieves documents, compares requirements, and drafts responses. Vultr Serverless Inference is the preferred model provider, subject to validation.</p></div></div>
-          <div class="arch-row"><span class="tech-badge">NETBIRD</span><div><h3>Protected access to company knowledge</h3><p>The planned reverse proxy provides authenticated access without public inbound application ports on the app VM.</p></div></div>
-          <div class="arch-row"><span class="tech-badge">YOU</span><div><h3>Approval before submission</h3><p>The agent prepares the response. You confirm qualifications, approve edits, and decide what is submitted.</p></div></div>
-        </div>
-      </section>
+        <section class="workflow-section" aria-labelledby="vultr-title">
+          <div class="chart-header"><div><span class="number">WHY VULTR</span><h2 id="vultr-title">A working agent with a home in the cloud.</h2></div></div>
+          <p class="tech-lead">Billy’s browser, company memory, and workflow run on Vultr. Your laptop is how you talk to him; his work runs on the server.</p>
+          <div class="architecture">
+            <div class="arch-row"><span class="tech-badge">COMPUTE</span><div><h3>Continuous opportunity monitoring</h3><p>The VM checks watched sources and stores results between visits. Show Billy researching Berkeley in his real shared browser.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">MEMORY</span><div><h3>Company knowledge that compounds</h3><p>Original PDFs, extracted evidence, company facts, and saved drafts live with the workflow. Show one claim linked to its source page and retained after refresh.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">CONTROL</span><div><h3>A business process with persistent state</h3><p>One conversation can update a company fact and queue a follow-up. Show the saved change, the remaining gap, and the task Billy needs to complete.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">INFERENCE</span><div><h3>The next integration: reasoning and drafting</h3><p>Connect Vultr Serverless Inference for requirement comparison and proposal generation. Its OpenAI-compatible API fits the existing backend. Optional for Future of Work; valuable proof of the wider Vultr platform.</p></div></div>
+          </div>
+          <p class="tech-reference"><a href="https://docs.vultr.com/how-to-use-vultr-serverless-inference-in-python" target="_blank" rel="noopener noreferrer">Vultr inference documentation ↗</a></p>
+          <blockquote class="tech-quote">“An always-on business development agent on Vultr. Billy finds the opportunity, prepares the response, and brings you in when your judgment matters.”</blockquote>
+        </section>
+      </div>
+      <div id="netbird" class="tech-panel" aria-labelledby="tab-netbird">
+        <section class="workflow-section" aria-labelledby="netbird-title">
+          <div class="chart-header"><div><span class="number">WHY NETBIRD</span><h2 id="netbird-title">Private work. Controlled access.</h2></div></div>
+          <p class="tech-lead">Proposals contain pricing, insurance information, and company knowledge. The review handoff gives secure access a clear purpose.</p>
+          <div class="architecture">
+            <div class="arch-row"><span class="tech-badge">ACCESS</span><div><h3>Authenticate the reviewer</h3><p>Serve the working app through NetBird’s reverse proxy with authentication for the reviewer role. Show an authorized person opening Billy’s response.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">NETWORK</span><div><h3>Keep application ports closed</h3><p>NetBird handles HTTPS and forwards traffic through an encrypted tunnel. Demonstrate the protected URL working while direct public access to the application service is closed.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">LIFECYCLE</span><div><h3>End access when the review ends</h3><p>A task-specific review route can be revoked when its session finishes. This requires explicit lifecycle integration. Keep a separate judge-access route available throughout judging.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">APPROVAL</span><div><h3>Separate access from permission to submit</h3><p>NetBird controls who can reach the workspace. Our application must bind approval to the exact document and destination before Billy executes delivery.</p></div></div>
+          </div>
+          <p class="tech-reference"><a href="https://docs.netbird.io/manage/reverse-proxy" target="_blank" rel="noopener noreferrer">NetBird reverse proxy documentation ↗</a></p>
+          <div class="decision-list"><details><summary>Bonus requirements and current access</summary><div><p>The participant guide calls for reverse-proxy access, closed inbound application ports, role-based gating, and task/session URL expiry. NetBird’s sponsor said peer connectivity or reverse-proxy use can qualify; the promised organizer clarification is still pending.</p><p>Today the private workspace uses an SSH tunnel. NetBird is still to connect. The public pitch currently uses port 80 on the same VM, so a zero-port demonstration also requires moving that access through the proxy or separating the public site.</p></div></details></div>
+        </section>
+      </div>
+      <div id="demo" class="tech-panel" aria-labelledby="tab-demo">
+        <section class="workflow-section" aria-labelledby="demo-title">
+          <div class="chart-header"><div><span class="number">DEMO SETUP</span><h2 id="demo-title">One opportunity. A complete story.</h2></div></div>
+          <p class="tech-lead">Start with an ESA demonstration profile, discover Berkeley, then import the previous public response to strengthen the evidence and close gaps.</p>
+          <div class="architecture">
+            <div class="arch-row"><span class="tech-badge">WORKING</span><div><h3>The foundation on Vultr</h3><p>Shared browser, source monitoring, preliminary keyword ranking, original PDF storage, company facts, guided discussions, saved response sections, and follow-up tasks.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">NEXT</span><div><h3>Connect the complete response flow</h3><p>Model-driven requirements and gap analysis → evidence-based drafting → generated response PDF in chat → NetBird access → approval-bound delivery with a recorded result.</p></div></div>
+            <div class="arch-row"><span class="tech-badge">VOICE</span><div><h3>An enhancement to the same chat</h3><p>Spoken input should feed the same conversation and saved actions. Keep the text path fully usable while voice is connected and validated.</p></div></div>
+          </div>
+          <div class="decision-list demo-notes">
+            <details open><summary>What makes the walkthrough credible?</summary><div><p><strong>Establish fit first.</strong> Basic company capabilities must exist before Billy can explain a match. A previous response enriches that profile; it does not establish current insurance, pricing, or availability.</p><p><strong>Use real requirements.</strong> The $1M Hartford versus $5M example illustrates gap handling. Only describe $5M as a Berkeley requirement if the selected RFP actually requires it.</p><p><strong>Follow Berkeley’s submission method.</strong> The selected RFP requests email delivery. Use a controlled recipient and identify the test delivery clearly; do not send an ESA-branded demo proposal to the city.</p><p><strong>Show the evidence.</strong> A source page, a missing requirement, a saved correction, the reviewed PDF, and a delivery result make the end-to-end story inspectable.</p></div></details>
+          </div>
+          <p class="tech-reference">The directory contains 6,222 source records. That count is not a count of active RFPs or verified integrations.</p>
+          <a class="cta" href="/app/" target="_blank" rel="noopener noreferrer">Launch App <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
+        </section>
       </div>
       <div id="decisions" class="tech-panel" aria-labelledby="tab-decisions">
       <section class="deployment-decisions" aria-labelledby="deployment-title">
-        <span class="number">03 / DEPLOYMENT DECISIONS</span>
-        <h2 id="deployment-title">What we chose. Why it matters.</h2>
+        <span class="number">05 / TECHNICAL Q&amp;A</span>
+        <h2 id="deployment-title">Decisions we can explain.</h2>
         <p class="chart-summary">Decisions from the September 26 deployment, with the tradeoffs we can explain in technical Q&amp;A. The public site and Billy’s private browser workspace run on Vultr. Model-driven drafting and NetBird access are the next integrations.</p>
         <div class="decision-list">
-          <details open><summary>Why one small Vultr VM?</summary><div><p><strong>Decision:</strong> Shared CPU, 1 vCPU, 1 GB RAM and 25 GB SSD in Silicon Valley, at $5/month before credits.</p><p><strong>Why:</strong> Serving the public site needs little compute. One VM keeps cost and operations simple, and Silicon Valley is close to the SF demo audience. Location is a proximity choice, not a measured latency claim.</p><p><strong>Tradeoff:</strong> There is no redundancy or autoscaling. Agent processing will need its own capacity measurements; this deployment does not establish a GPU requirement.</p></div></details>
+          <details><summary>Why one small Vultr VM?</summary><div><p><strong>Decision:</strong> Shared CPU, 1 vCPU, 1 GB RAM and 25 GB SSD in Silicon Valley, at $5/month before credits.</p><p><strong>Why:</strong> Serving the public site needs little compute. One VM keeps cost and operations simple, and Silicon Valley is close to the SF demo audience. Location is a proximity choice, not a measured latency claim.</p><p><strong>Tradeoff:</strong> There is no redundancy or autoscaling. Agent processing will need its own capacity measurements; this deployment does not establish a GPU requirement.</p></div></details>
           <details><summary>Why nginx and plain HTML, CSS and JavaScript?</summary><div><p><strong>Decision:</strong> Serve the pitch, technical reference and app entry route with nginx on Ubuntu 26.04 LTS. No build step or application runtime is needed for these pages.</p><p><strong>Why:</strong> The first deployment has a small operational footprint and can be checked independently of the agent workflow.</p><p><strong>Boundary:</strong> The separate Python workspace API now owns browser jobs, imported PDF text and saved research. Model inference and proposal generation are not connected yet.</p></div></details>
           <details><summary>How can we reproduce the deployment?</summary><div><p><strong>Decision:</strong> Cloud-init clones the public GitHub repository, checks out an explicit commit and runs <a href="https://github.com/yveshughes/rfp-agent/blob/main/deploy/install.sh" target="_blank" rel="noopener noreferrer">deploy/install.sh ↗</a>. The server checkout lives in <code>/opt/rfp-agent</code>; nginx serves <code>/var/www/rfp-agent</code>.</p><p><strong>Why:</strong> A commit identifies the exact version deployed. The installer copies only <code>site/</code>, keeping repository and private working files outside the web root.</p><p><strong>Verification:</strong> Public HTML, JavaScript, Mermaid source and video were checked for HTTP 200 responses and byte-for-byte equality with local files. GitHub pushes require an explicit server update; automatic deployment is not configured.</p></div></details>
           <details><summary>What caused the first connectivity issue?</summary><div><p><strong>Observed:</strong> Cloud-init completed, nginx was active and local HTTP returned 200, but public HTTP timed out. Ubuntu’s active UFW firewall allowed only SSH.</p><p><strong>Decision:</strong> Add TCP port 80 for the public website and preserve the firewall. The installer now adds this rule when UFW is active.</p><p><strong>Why:</strong> A healthy service and a reachable service are separate checks. We verified both instead of disabling the firewall.</p></div></details>
@@ -69,7 +104,7 @@
           <details><summary>Which presentation dependencies can fail independently?</summary><div><p><strong>Decision:</strong> Serve the optimized animation locally. Load pinned Mermaid 12.0.0 from jsDelivr and fonts from Google Fonts, with a written workflow and system-font fallbacks.</p><p><strong>Why:</strong> The site remains readable if those external services fail. The animation has a pause control and respects reduced-motion preferences.</p><p><strong>Tradeoff:</strong> The diagram still depends on a CDN. A fully offline demo would need bundled diagram rendering and fonts. The animation illustrates the vision, not a recorded agent run or contract award.</p></div></details>
         </div>
         <div class="decision-list">
-          <details><summary>How does Billy’s expression reflect real activity?</summary><div><p><strong>Decision:</strong> Character animations follow live workspace state: snoozing between tasks, researching, reading documents and waiting for input. Snoozing uses an existing closed-eye frame with CSS breathing and floating Zs; the other states use short video loops. Pending decisions and human browser control take precedence over active work. The animation never serves as evidence that a proposal was sent or won.</p><p><strong>Why:</strong> You can see at a glance whether Billy is working or needs you. A separate Settings preview lets you inspect the animations without changing the agent’s task. Motion can be paused, and reduced-motion preferences are respected.</p></div></details>
+          <details><summary>How does Billy’s expression reflect real activity?</summary><div><p><strong>Decision:</strong> Character animations follow live workspace state: discussing when Chats is open, snoozing between tasks, researching, reading documents and waiting for input. Snoozing uses an existing closed-eye frame with CSS breathing and floating Zs; the other states use short video loops. Pending decisions and human browser control take precedence over active work. The animation never serves as evidence that a proposal was sent or won.</p><p><strong>Why:</strong> You can see at a glance whether Billy is working or needs you. A separate Settings preview lets you inspect the animations without changing the agent’s task. Motion can be paused, and reduced-motion preferences are respected.</p></div></details>
           <details><summary>Why separate Sources from RFPs?</summary><div><p><strong>Decision:</strong> Sources holds the agency directory and persistent watchlist. RFPs holds specific opportunities, lifecycle statuses and their original documents. The workspace enforces a configurable watched-source allowance on the server.</p><p><strong>Why:</strong> One agency can publish many opportunities. A limit on followed agencies gives subscription tiers a clear unit without limiting access to the directory.</p><p><strong>Boundary:</strong> Watching queues a public-source check; the private Vultr service repeats checks hourly. Every discovered candidate stays in All opportunities, including weak matches. Berkeley, East Palo Alto and Siskiyou County have tested listing adapters; other portals use conservative discovery and show partial coverage when completeness is uncertain. Billing and external notifications are separate work.</p></div></details>
           <details><summary>What does response progress measure?</summary><div><p><strong>Decision:</strong> Give each RFP a Files tab and editable response sections. Store drafts, per-section checklists, and discussion notes on the Vultr VM. Section percentages measure saved checklist completion; total progress uses all response checklist items.</p><p><strong>Why:</strong> Missing information stays visible beside the section it belongs to. Files retain their original evidence, and version checks prevent one session from silently overwriting another session’s saved section.</p><p><strong>Boundary:</strong> Progress is a manual workflow measure, not verified RFP compliance. The initial sections are editable suggestions. Contextual discussion keeps messages with each section. Meta voice/chat can be enabled with server credentials; automatic requirement extraction remains separate. Drafting never submits the response.</p></div></details>
           <details><summary>Why Gemini Live for Billy’s voice conversation?</summary><div><p><strong>Interaction:</strong> “Discuss with Billy” opens Chats. The conversation stays in the center; reusable facts and queued actions appear under Discussing on the right. Activity and Decisions remain available beside it.</p><p><strong>Recommendation:</strong> Gemini Live combines spoken responses, interruptions, transcripts, and tool calls. Muse Voice Transcribe is a strong transcription component, but needs a separate conversational model and voice output. For a natural conversation with Billy, Gemini Live is the closer fit.</p><p><strong>Current implementation:</strong> Typed guided discussions save company facts and scoped RFP notes, and persist learnings and follow-ups. An optional Meta push-to-talk adapter returns an editable transcript before Send. Gemini Live still needs credentials and integration; neither provider has been validated live in this workspace.</p><p><strong>Action boundary:</strong> User-reported facts remain distinct from evidence. Accepting an insurance research offer creates a to-do item; it does not buy a policy or submit a bid.</p><p><a href="https://ai.google.dev/gemini-api/docs/live-api" target="_blank" rel="noopener">Gemini Live documentation ↗</a> · <a href="https://dev.meta.ai/docs/speech-to-text" target="_blank" rel="noopener">Muse Transcribe documentation ↗</a></p></div></details>
@@ -80,29 +115,11 @@
           <details><summary>How are browser actions bounded?</summary><div><p><strong>Decision:</strong> Chromium’s sandbox stays enabled. A narrowly targeted, root-owned browser profile provides the Ubuntu namespace permission it needs. Network checks reject private addresses and non-web schemes; WebSockets and service workers are disabled.</p><p><strong>Human control:</strong> Form submissions pause for approval. Other network writes require a one-use approval. Taking control prevents Billy from starting a competing navigation.</p><p><strong>Tradeoff:</strong> This is not a complete hostile-code isolation claim or a universal detector of side effects. Authenticated portal submissions and untrusted document processing need additional validation. A blocked page is recorded as a failure, never a successful review.</p></div></details>
         </div>
       </section>
-      <section class="judge-section" aria-labelledby="judges-title">
-        <span class="number">PRODUCT DECISIONS / PROOF TO DEMONSTRATE</span>
-        <h2 id="judges-title">Useful autonomy. Inspectable work.</h2>
-        <div class="judge-grid">
-          <article><span class="judge-topic">EXECUTION</span><h3>A workflow that produces an artifact</h3><p>The intended agent fetches an RFP, extracts requirements, compares evidence, and produces an editable response. A saved run connects the input documents to the output version.</p><p class="proof"><strong>Proof to show:</strong> a real run, its source pages, and its generated draft.</p></article>
-          <article><span class="judge-topic">TRUST</span><h3>Knowing when the evidence is missing</h3><p>A prior proposal can establish relevant experience without proving every new qualification. Missing, dated, or unverified claims stay flagged for confirmation.</p><p class="proof"><strong>Proof to show:</strong> one supported claim beside one unresolved requirement.</p></article>
-          <article><span class="judge-topic">HUMAN INTERACTION</span><h3>Voice editing you can inspect and undo</h3><p>A spoken request proposes a change. The owner sees the diff and decides whether to apply it. Version history preserves earlier drafts.</p><p class="proof"><strong>Proof to show:</strong> speak → inspect → apply → undo, on a real response.</p></article>
-          <article><span class="judge-topic">VULTR</span><h3>The infrastructure does the work</h3><p>The planned Vultr backend owns orchestration, job state, company evidence, and output files. Modest CPU compute handles document jobs; model calls stay in the trusted backend.</p><p class="proof"><strong>Proof to show:</strong> the running VM, persisted results after refresh, and measured processing time.</p></article>
-          <article><span class="judge-topic">NETBIRD</span><h3>Private company knowledge deserves controlled access</h3><p>Authenticated reverse-proxy access is the planned NetBird integration. It has a practical purpose: giving a reviewer access while keeping inbound application ports closed on the app VM.</p><p class="proof"><strong>Proof to show:</strong> an authorized review session and the actual network configuration.</p></article>
-          <article><span class="judge-topic">BUSINESS IMPACT</span><h3>More capacity to pursue the right work</h3><p>The long-term vision is continuous opportunity monitoring and reusable company knowledge. The initial demo focuses on one complete response workflow; nationwide ranking and automatic submission are outside its scope.</p><p class="proof"><strong>Measure:</strong> evidence coverage, edits required, run time, and actual operating cost.</p></article>
-        </div>
-      </section>
-      </div>
-      <div id="demo" class="tech-panel" aria-labelledby="tab-demo">
-      <section class="tech-section" aria-labelledby="demo-title">
-        <div class="section-label"><span class="number">04 / THE DEMO PATH</span><h2 id="demo-title">A real opportunity.<br>A focused demo.</h2></div>
-        <div class="demo-details"><div class="source-stat"><strong>6,222</strong><span>source records collected</span></div><p>Our planned walkthrough narrows the directory to California, then Berkeley, and prepares a response using a previous public proposal as source material.</p><p class="detail-note">Source records are not verified portals or active opportunities. The hero animation illustrates the product vision; it does not depict an actual contract award.</p><a class="cta" href="/app/" target="_blank" rel="noopener noreferrer">Live Demo <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a></div>
-      </section>
       </div>
       </div>
     </main>
     <footer><span>Built for the Vultr Agent Arena Hackathon.</span><a href="https://github.com/yveshughes/rfp-agent" target="_blank" rel="noopener noreferrer">Open source <span aria-hidden="true">↗</span></a></footer>
   </div>
-  <script type="module" src="/technical.js"></script>
+  <script type="module" src="/technical.js?v=demo-story-1"></script>
 </body>
 </html>

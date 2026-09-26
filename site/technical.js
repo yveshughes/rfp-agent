@@ -60,7 +60,7 @@ const message = document.querySelector('#chart-status');
 try {
   const [{ default: mermaid }, response] = await Promise.all([
     import('https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs'),
-    fetch('/assets/workflow.mmd'),
+    fetch('/assets/workflow.mmd?v=demo-story-1'),
   ]);
   if (!response.ok) throw new Error('Diagram source unavailable');
   mermaid.initialize({
