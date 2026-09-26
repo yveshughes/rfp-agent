@@ -83,3 +83,7 @@ An RFP opens as a center-pane page with Files and three editable response-sectio
 Progress is the proportion of manually completed checklist items; overall progress is weighted by the total number of items across sections, excluding files. An empty draft cannot reach 100%. Starter checklists are suggestions, not requirements extracted from the source. Saving sections uses optimistic versions to reject stale writes. Unsaved drafts are kept in memory while switching sections; use Save section before reloading or closing the app.
 
 Each tab summarizes its remaining saved checklist items and has a scoped text-notes panel. Notes can be explicitly appended to a response draft. Model-generated discussion replies, automatic requirement extraction, and voice are not connected yet. No response submission is triggered by drafting or completing a checklist.
+
+## Workspace design convention
+
+Use the shared top bar for each primary page title. Do not repeat the navigation name in a large content heading, eyebrow, or introductory banner. Place relevant counts beside the top-bar title; begin the content with tabs, controls, or records. Specific record names (such as an RFP title) and meaningful subsection headings remain in the content area. Apply this convention to new pages as well as existing ones.
