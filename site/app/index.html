@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=live-voice-1"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><script>// The workspace is private. Served from the public site, this page forwards to the owner's
+// private connection; browsers allow that navigation but block in-page requests to localhost.
+if(!["localhost","127.0.0.1"].includes(location.hostname))location.replace("http://localhost:8081/app/"+location.search+location.hash);</script><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=live-voice-1"></head>
 <body>
 <div class="workspace" id="workspace">
   <aside class="navigation" aria-label="Main navigation">
@@ -87,5 +89,5 @@
 <dialog id="new-workspace-dialog" class="new-workspace-dialog"><form id="new-workspace-form"><h2>Add a company</h2><p>Give Billy a new workspace. Its profile, chats, watched sources and responses stay separate.</p><label for="new-workspace-name">Company name</label><input id="new-workspace-name" maxlength="100" required autocomplete="organization" placeholder="e.g. Acme Environmental"><div><button type="button" id="cancel-workspace">Cancel</button><button id="create-workspace" class="primary">Create workspace ↗</button></div></form></dialog>
 <dialog id="response-review-dialog" class="document-dialog response-review-dialog"><header><h2>Review and submit</h2><button id="response-review-close" aria-label="Close response review">✕</button></header><div id="response-review-content"></div></dialog>
 <div id="toast" role="status" hidden></div>
-<script type="module" src="/app/workspace.js?v=public-launch-1"></script>
+<script type="module" src="/app/workspace.js?v=public-launch-2"></script>
 </body></html>

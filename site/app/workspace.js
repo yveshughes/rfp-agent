@@ -14,9 +14,9 @@ import {createLiveVoice} from './live-voice.js?v=1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
-// Served from the public site or the static 8080 preview, the app talks to the owner's private
-// tunnel on this machine; served by the backend itself, it uses the same origin.
-const API_ORIGIN = local && location.port === '8080' ? 'http://127.0.0.1:8081' : !local ? 'http://localhost:8081' : '';
+// The static 8080 preview talks to the tunnel on this machine; the backend's own /app/ uses its origin.
+// A public host never reaches this line: index.html forwards it to the private workspace first.
+const API_ORIGIN = local && location.port === '8080' ? 'http://127.0.0.1:8081' : '';
 const companyWorkspace = await connectWorkspace(API_ORIGIN, toast);
 const API = companyWorkspace.api;
 const storageKey = key => `billy-${companyWorkspace.id}-${key}`;
