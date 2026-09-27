@@ -11,7 +11,7 @@
   <div class="page">
     <header>
       <a href="/" class="brand" aria-label="RFP Agent home"><span class="brand-mark" aria-hidden="true">r<span>↗</span></span> RFP Agent</a>
-      <nav class="page-tabs" aria-label="Explore RFP Agent"><a href="/">The pitch</a><a href="/technical/" aria-current="page">Technical details</a><a href="/technical/#demo">Demo setup</a></nav>
+      <nav class="page-tabs" aria-label="Explore RFP Agent"><a href="/">The pitch</a><a href="/technical/" aria-current="page">Technical details</a><a href="/app/" target="_blank" rel="noopener noreferrer">Launch App <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a></nav>
       <a class="source" href="https://github.com/yveshughes/rfp-agent" target="_blank" rel="noopener noreferrer"><img class="github-icon" src="/assets/github.svg" width="18" height="18" alt="">View source <span aria-hidden="true">↗</span></a>
     </header>
     <main id="main" class="technical">
@@ -80,7 +80,8 @@
             <details open><summary>What makes the walkthrough credible?</summary><div><p><strong>Establish fit first.</strong> Basic company capabilities must exist before Billy can explain a match. A previous response enriches that profile; it does not establish current insurance, pricing, or availability.</p><p><strong>Use real requirements.</strong> The $1M Hartford versus $5M example illustrates gap handling. Only describe $5M as a Berkeley requirement if the selected RFP actually requires it.</p><p><strong>Follow Berkeley’s submission method.</strong> The selected RFP requests email delivery. No delivery is performed by the current app; do not send an ESA-branded demonstration proposal to the city.</p><p><strong>Show the evidence.</strong> Show the original source, a cited gap, a saved correction, and the generated PDF. Add a delivery receipt only after delivery is implemented and actually succeeds.</p></div></details>
           </div>
           <p class="tech-reference">The private directory contains 6,222 source records; the opportunity feed combines watched-source discoveries and shared imports. Directory size is not a count of active RFPs or verified integrations. The full source list is excluded from the public repository.</p>
-          <p class="tech-reference"><strong>Where is the app?</strong> Billy’s workspace is private. It runs on the Vultr VM behind a loopback API and an authorized private connection, because proposals carry pricing and insurance details. It is shown live during judging; this public site only explains it.</p>
+          <p class="tech-reference"><strong>Where is the app?</strong> Billy’s workspace is private. It runs on the Vultr VM behind a loopback API, reached over an authorized private connection, because proposals carry pricing and insurance details. Launch App opens the workspace; it connects only from a machine that holds that private connection and is shown live during judging.</p>
+          <a class="cta" href="/app/" target="_blank" rel="noopener noreferrer">Launch App <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
         </section>
       </div>
       <div id="decisions" class="tech-panel" aria-labelledby="tab-decisions">

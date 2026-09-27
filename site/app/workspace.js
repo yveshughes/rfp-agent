@@ -14,7 +14,9 @@ import {createLiveVoice} from './live-voice.js?v=1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
-const API_ORIGIN = local && location.port === '8080' ? 'http://127.0.0.1:8081' : '';
+// Served from the public site or the static 8080 preview, the app talks to the owner's private
+// tunnel on this machine; served by the backend itself, it uses the same origin.
+const API_ORIGIN = local && location.port === '8080' ? 'http://127.0.0.1:8081' : !local ? 'http://localhost:8081' : '';
 const companyWorkspace = await connectWorkspace(API_ORIGIN, toast);
 const API = companyWorkspace.api;
 const storageKey = key => `billy-${companyWorkspace.id}-${key}`;
@@ -214,7 +216,7 @@ async function refresh(){try{const next=await api('/state');state=next;workspace
   const mine=next.browser.controller==='you';$('#browser-owner').textContent=mine?'You are in control':'Billy is in control';$('#take-control').textContent=mine?'Hand back to Billy':'Take control';$('#take-control').disabled=next.browser.busy||!next.browser.ready;$('#remote-screen').classList.toggle('in-control',mine);$('#browser-note').textContent=mine?'Click the page to focus a field. Type below, or use your keyboard. Submit actions still require approval.':'You can watch Billy here. Take control to interact with this session.';
   ['#browser-back','#browser-reload','#browser-text','#send-browser-text','#browser-enter','#browser-scroll-up','#browser-scroll-down'].forEach(s=>$(s).disabled=!mine||next.browser.busy);
   agentChat.poll();discussionAgenda.refresh();renderDecisions();if(currentView==='company')renderDocuments();if(currentView==='artifacts')renderArtifacts();if(currentView==='rfps'&&!$('#opportunity-feed').hidden)opportunityFeed.load();
-}catch(err){$('#connection-notice').hidden=false;$('#connection-notice').textContent=local?'Billy’s workspace is not connected. Start the local service or reconnect the VM tunnel. Your saved work is retained.':'This is Billy’s private workspace. It runs on a Vultr VM over a private connection and is shown live during judging; the public site cannot reach it.';workspaceConnected=false;updateBillyMotion();$('#backend-status').textContent='Disconnected';}}
+}catch(err){$('#connection-notice').hidden=false;$('#connection-notice').textContent=local?'Billy’s workspace is not connected. Start the local service or reconnect the VM tunnel. Your saved work is retained.':'This is Billy’s private workspace. It runs on a Vultr VM and connects only through an authorized private connection on the presenter’s machine. It is shown live during judging.';workspaceConnected=false;updateBillyMotion();$('#backend-status').textContent='Disconnected';}}
 async function refreshFrame(){if(!state?.browser.ready||pendingFrame||document.hidden)return;pendingFrame=true;try{const res=await fetch(API+'/api/browser/frame');if(res.status!==200)return;const blob=await res.blob();const old=frameURL;frameURL=URL.createObjectURL(blob);$('#browser-thumbnail').src=frameURL;$('#browser-full').src=frameURL;$('#browser-thumbnail').hidden=false;$('#browser-empty').hidden=true;$('#full-empty').hidden=true;if(old)URL.revokeObjectURL(old);}catch{}finally{pendingFrame=false;}}
 function expandBrowser(){ $('#browser-dialog').showModal();refreshFrame(); }
 $('#expand-browser').onclick=expandBrowser;$('#close-browser').onclick=()=>$('#browser-dialog').close();
