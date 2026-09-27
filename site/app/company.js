@@ -1,4 +1,4 @@
-import {updateProfileCompletion} from './workspaces.js?v=profile-ring-1';
+import {updateProfileCompletion} from './workspaces.js?v=profile-colors-1';
 // Company facts are captured in scoped conversations, with explicit evidence provenance.
 export function createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState,openDiscussion}) {
   const $=s=>document.querySelector(s);

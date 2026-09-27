@@ -61,9 +61,9 @@
 #workspace-switcher{flex:1;min-width:0;width:auto}
 .profile-completion{position:relative;flex:0 0 40px;width:40px;height:40px;border-radius:50%;padding:0;background:#f0f2e9;color:var(--ink)}
 .profile-completion svg{position:absolute;inset:0;width:100%;height:100%;transform:rotate(-90deg);fill:none;stroke-width:2.5}
-.profile-ring-track{stroke:#dce3d6}#profile-ring-value{stroke:var(--green);transition:stroke-dasharray .5s ease}
+.profile-ring-track{stroke:#dce3d6}#profile-ring-value{stroke:var(--profile-progress-color,#92978f);transition:stroke-dasharray .5s ease,stroke .5s ease}
 .profile-ring-initials,#profile-ring-percent{position:absolute;inset:0;display:grid;place-items:center;font-size:10px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
-#profile-ring-percent{opacity:0}.profile-completion[data-ready=true] .profile-ring-initials{animation:profile-initials 7s ease-in-out infinite}.profile-completion[data-ready=true] #profile-ring-percent{animation:profile-percent 7s ease-in-out infinite}
+#profile-ring-percent{opacity:0;color:var(--profile-progress-color,#92978f);transition:color .5s ease}.profile-completion[data-ready=true] .profile-ring-initials{animation:profile-initials 7s ease-in-out infinite}.profile-completion[data-ready=true] #profile-ring-percent{animation:profile-percent 7s ease-in-out infinite}
 @keyframes profile-initials{0%,35%,95%,100%{opacity:1}45%,85%{opacity:0}}
 @keyframes profile-percent{0%,35%,95%,100%{opacity:0}45%,85%{opacity:1}}
 .profile-ring-tooltip{position:absolute;left:0;bottom:calc(100% + 10px);padding:8px 11px;background:var(--ink);color:white;border-radius:7px;white-space:nowrap;font-size:11px;font-weight:400;opacity:0;visibility:hidden;pointer-events:none;z-index:50;transition:opacity .15s}
@@ -72,4 +72,4 @@
 .profile-completion[data-ready=true]:hover #profile-ring-percent,.profile-completion[data-ready=true]:focus-visible #profile-ring-percent{animation:none;opacity:1}
 .nav-collapsed .workspace-picker{flex-direction:column;gap:2px}.nav-collapsed #workspace-switcher{flex:none;width:40px;height:18px;justify-content:center;padding:0}.nav-collapsed #workspace-switcher .workspace-chevron{display:block}
 @media(max-width:1100px){.workspace-picker{flex-direction:column;gap:2px}#workspace-switcher{flex:none;width:40px;height:18px;justify-content:center;padding:0}#workspace-switcher .workspace-chevron{display:block}}
-@media(prefers-reduced-motion:reduce){.profile-completion[data-ready=true] .profile-ring-initials{animation:none;opacity:0}.profile-completion[data-ready=true] #profile-ring-percent{animation:none;opacity:1}#profile-ring-value,.profile-ring-tooltip{transition:none}}
+@media(prefers-reduced-motion:reduce){.profile-completion[data-ready=true] .profile-ring-initials{animation:none;opacity:0}.profile-completion[data-ready=true] #profile-ring-percent{animation:none;opacity:1}#profile-ring-value,#profile-ring-percent,.profile-ring-tooltip{transition:none}}

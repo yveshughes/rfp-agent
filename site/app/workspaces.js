@@ -73,6 +73,9 @@ export function updateProfileCompletion(profile) {
   const button = document.querySelector('#profile-shortcut');
   document.querySelector('#profile-ring-value').setAttribute('stroke-dasharray', `${percent} 100`);
   document.querySelector('#profile-ring-percent').textContent = `${percent}%`;
+  // Warm early progress becomes greener as the profile fills out.
+  const color = percent === 0 ? '#92978f' : percent < 25 ? '#b46b4c' : percent < 50 ? '#a77b25' : percent < 75 ? '#7b873a' : percent < 100 ? '#55804c' : '#287348';
+  button.style.setProperty('--profile-progress-color', color);
   button.dataset.ready = 'true';
   button.setAttribute('aria-label', `Complete your company profile · ${percent}% complete · ${filled} of ${fields.length} details recorded`);
 }
