@@ -94,3 +94,6 @@
 .state-filter-footer{border-top:1px solid var(--line);justify-content:flex-end}
 .state-filter-footer button{border-radius:7px;background:var(--green);color:white;padding:7px 16px;font-size:11px}
 .state-filter :focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+.idle-desk{display:block;width:100%;height:100%;object-fit:cover;filter:grayscale(1);opacity:.65}
+.billy-profile[data-state=idle] .billy-avatar{background:#e9ebe6}

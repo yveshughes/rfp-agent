@@ -29,12 +29,20 @@ test('explicit pause survives activity, visibility and OS preference changes',()
   const reduced={matches:false,addEventListener:(name,fn)=>listeners.motion=fn};
   const video={play:()=>{plays++;return Promise.resolve();},pause:()=>{},load:()=>{},setAttribute:()=>{},addEventListener:()=>{}};
   const button={setAttribute:()=>{}};
-  const nodes={'#billy-video':video,'#billy-phone':{hidden:true},'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
+  const nodes={'#billy-video':video,'#billy-idle-desk':{hidden:true},'#billy-phone':{hidden:true},'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
   try{
     globalThis.document={hidden:false,querySelector:s=>nodes[s],addEventListener:(name,fn)=>listeners[name]=fn};
     globalThis.localStorage={getItem:()=>preference,setItem:(_,value)=>{preference=value;}};
     globalThis.matchMedia=()=>reduced;
-    const motion=createBillyMotion();motion.update({...ready,browser:{...ready.browser,busy:true}});
+    const motion=createBillyMotion();
+    motion.update(null,{connected:false});
+    assert.equal(nodes['#billy-idle-desk'].hidden,false);
+    assert.equal(video.hidden,true);
+    assert.equal(button.hidden,true);
+    assert.equal(plays,0);
+    motion.update({...ready,browser:{...ready.browser,busy:true}});
+    assert.equal(nodes['#billy-idle-desk'].hidden,true);
+    assert.equal(button.hidden,false);
     assert.ok(plays>0);
     button.onclick();assert.equal(preference,'off');const before=plays;
     motion.update({...ready,document_jobs:1});

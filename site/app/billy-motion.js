@@ -2,7 +2,7 @@ export const motions = {
   voice: {name:'On the phone', description:'Billy holds his corded desk phone during listening, transcription, and spoken replies.'},
   discussing: {name:'Discussing', description:'Billy is messaging with you and keeping track of the next steps.'},
   snoozing: {name:'Snoozing', description:'A little rest between tasks. Billy wakes when there’s work to do.'},
-  idle: {name:'Idle', description:'Relaxed and ready for the next task.'},
+  idle: {name:'Idle', description:'Billy’s empty desk, grayed out while he is away.'},
   researching: {name:'Researching', description:'Scanning a source and working at the keyboard.'},
   reading: {name:'Reading', description:'Reviewing the pages of a document.'},
   waiting: {name:'Needs you', description:'Hands off the keyboard, waiting for your input.'},
@@ -45,6 +45,7 @@ export function createBillyMotion() {
   const profile=document.querySelector('.billy-profile');
   const sleeper=document.querySelector('#billy-snooze');
   const phone=document.querySelector('#billy-phone');
+  const desk=document.querySelector('#billy-idle-desk');
   const button=document.querySelector('#billy-motion');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let preference;
@@ -53,7 +54,8 @@ export function createBillyMotion() {
   let current=null, tone='offline';
   const sync=()=>{
     const playing=enabled && !document.hidden && tone!=='offline';
-    if(playing && !['snoozing','voice'].includes(current)) video.play().catch(()=>{}); else video.pause();
+    if(playing && !['idle','snoozing','voice'].includes(current)) video.play().catch(()=>{}); else video.pause();
+    button.hidden=current==='idle';
     profile.dataset.animate=playing?'running':'paused';
     button.textContent=enabled?'Ⅱ':'▷';
     button.setAttribute('aria-label',enabled?'Pause Billy animation':'Play Billy animation');
@@ -79,8 +81,9 @@ export function createBillyMotion() {
         delete profile.dataset.mediaError;
         const asleep=current==='snoozing';
         const onPhone=current==='voice';
-        sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=asleep||onPhone;
-        if(!asleep&&!onPhone){
+        const idle=current==='idle';
+        desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;
+        if(!idle&&!asleep&&!onPhone){
         const asset=current==='discussing'?'researching':current;
         video.poster=`/assets/billy/${asset}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
@@ -99,6 +102,7 @@ export function setupMotionPreview() {
   const stage=document.querySelector('#billy-preview-stage');
   const sleeper=document.querySelector('#billy-preview-snooze');
   const phone=document.querySelector('#billy-preview-phone');
+  const desk=document.querySelector('#billy-preview-idle-desk');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let enabled=!reduced.matches;
   const toggle=document.querySelector('#snooze-preview-motion');
@@ -112,10 +116,10 @@ export function setupMotionPreview() {
   function select(name){
     document.querySelectorAll('[data-motion-preview]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.motionPreview===name)));
     document.querySelector('#billy-preview-description').textContent=motions[name].description;
-    const asleep=name==='snoozing',onPhone=name==='voice';
-    stage.dataset.state=name;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=asleep||onPhone;toggle.hidden=!asleep&&!onPhone;
+    const asleep=name==='snoozing',onPhone=name==='voice',idle=name==='idle';
+    stage.dataset.state=name;desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;toggle.hidden=!asleep&&!onPhone;
     sync();
-    if(asleep||onPhone){video.pause();return;}
+    if(idle||asleep||onPhone){video.pause();return;}
     const asset=name==='discussing'?'researching':name;
     video.poster=`/assets/billy/${asset}.jpg`;
     video.src=`/assets/billy/${asset}.mp4`;

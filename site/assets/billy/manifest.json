@@ -3,9 +3,11 @@
   "reference": "../agent-poster.jpg",
   "states": {
     "idle": {
-      "file": "idle.mp4",
-      "poster": "idle.jpg",
-      "sha256": "032baf973ef12e803522e4afb8d02d3a68ce3f574a8f293ab7ed609f7dfdee33"
+      "file": "empty-desk.png",
+      "reference": "idle.jpg",
+      "generator": "Built-in image generation",
+      "presentation": "Static; CSS grayscale(1), opacity 0.65",
+      "sha256": "83bfb31e6ccdc885d75846d848854a48b905654d35fa3ec6fa577768f4202c81"
     },
     "researching": {
       "file": "researching.mp4",
@@ -27,6 +29,10 @@
       "generator": "Built-in image generation",
       "animation": "CSS breathing loop; no generated video",
       "sha256": "4bb7050176946551293faadf043f1402ee1af5109e4fbcf90b0ecb2222645ef4"
+    },
+    "snoozing": {
+      "file": "idle.jpg",
+      "animation": "CSS breathing loop"
     }
   }
 }

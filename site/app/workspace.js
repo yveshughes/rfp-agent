@@ -5,7 +5,7 @@ import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities
 import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=profile-colors-1';
-import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=company-web-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=idle-desk-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
