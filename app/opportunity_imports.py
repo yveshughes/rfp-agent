@@ -46,6 +46,13 @@ class ImportVisibility(BaseModel):
     active: bool
 
 
+def customer_notes(row):
+    return (row['description']+'\n\nConfirm availability, scope and requirements with the issuing agency before preparing a response.').strip()[:10000]
+
+def legacy_notes(row):
+    return ('Shared catalog candidate; verify the original source before acting.\n\n'+row['description']+'\n\nDescription quality: '+row['description_quality']+'\n'+'\n'.join(row['quality_notes']))[:10000]
+
+
 def register_imports(app,db,catalog_db):
     # The catalog connection is shared by every workspace on this server.
     with catalog_db() as c:
@@ -80,8 +87,7 @@ def register_imports(app,db,catalog_db):
                     rid=existing.get(item['url_key']);owned=not bool(rid)
                     if owned:
                         rid=uuid.uuid4().hex
-                        notes='Shared catalog candidate; verify the original source before acting.\n\n'+row['description']
-                        notes+='\n\nDescription quality: '+row['description_quality']+'\n'+'\n'.join(row['quality_notes'])
+                        notes=customer_notes(row)
                         c.execute('INSERT INTO rfps VALUES (?,?,?,?,?,?,?,?,?)',(rid,row['title'],'; '.join(row['agencies']),row['url'],'Researching','',notes[:10000],now,now))
                         c.execute('INSERT INTO discovered_rfps VALUES (?,0)',(rid,))
                         c.execute('INSERT INTO opportunity_reviews(rfp_id,body,reviewed,error,complete) VALUES (?,?,NULL,?,0)',(rid,row['description'],'Imported webpage evidence; source and availability not verified.'))
@@ -89,6 +95,9 @@ def register_imports(app,db,catalog_db):
                     c.execute('INSERT INTO opportunity_catalog_links VALUES (?,?,?)',(rid,item['id'],int(owned)))
                     link={'rfp_id':rid,'created_by_catalog':int(owned)}
                 if link:
+                    if link['created_by_catalog']:
+                        # Only replace the exact generated text; never alter a customer's edits.
+                        c.execute('UPDATE rfps SET notes=? WHERE id=? AND notes=?',(customer_notes(row),link['rfp_id'],legacy_notes(row)))
                     previous=result.get(link['rfp_id'])
                     current={**row,'batch_id':item['batch_id'],'label':item['label'],'active':bool(item['active']),'created_by_catalog':link['created_by_catalog']}
                     if previous:

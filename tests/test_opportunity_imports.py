@@ -107,3 +107,13 @@ class ImportTests(unittest.IsolatedAsyncioTestCase):
         result=await server.agent.execute('unused','inspect_rfp',{'rfp_id':'mine'})
         self.assertTrue(result['catalog_evidence']['description'].endswith('END OF FULL DESCRIPTION'))
         self.assertEqual(result['rfp']['notes'],'Private notes')
+    async def test_customer_notes_cleanup_preserves_edited_notes(self):
+        from app.opportunity_imports import legacy_notes
+        req=self.request();await server.import_opportunities(req)
+        row=(await server.opportunity_feed())['rows'][0]
+        with server.db() as c:c.execute('UPDATE rfps SET notes=? WHERE id=?',(legacy_notes(req.rows[0].model_dump()),row['id']))
+        await server.opportunity_feed()
+        cleaned=server.require_rfp(row['id'])['notes'];self.assertNotIn('Description quality:',cleaned);self.assertIn(req.rows[0].description,cleaned)
+        with server.db() as c:c.execute("UPDATE rfps SET notes='Customer edited notes' WHERE id=?",(row['id'],))
+        await server.opportunity_feed()
+        self.assertEqual(server.require_rfp(row['id'])['notes'],'Customer edited notes')

@@ -1,7 +1,7 @@
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
 import {createAgentChat} from './agent-chat.js?v=action-loop-1';
-import {createOpportunityFeed} from './opportunities.js?v=jev-import-1';
+import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities-1';
 import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=profile-colors-1';
@@ -51,7 +51,7 @@ const updateBillyMotion=(forcePanel=false)=>{
 };
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
-const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
+const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),showCompany:()=>showView('company'),openDocument});
 const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
 let chatSuggestions;
