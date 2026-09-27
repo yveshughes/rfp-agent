@@ -1,6 +1,7 @@
 import {resolveAgentActivity} from './billy-motion.js?v=company-web-1';
+import {renderChatOutcome} from './chat-cards.js?v=1';
 
-export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply}) {
+export function createAgentChat({api,esc,toast,openRFP,openCompany,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply}) {
   const $=s=>document.querySelector(s);
   const host=document.createElement('div');host.id='agent-conversation';host.className='conversation';$('#chat-scroll').append(host);
   let snapshot=null,polling=false,sending=false,signature='',lastStatus='',discussionReply=false;
@@ -15,9 +16,16 @@ export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDoc
     $('#welcome').hidden=true;$('#conversation').hidden=true;
     const key=JSON.stringify([run,messages,steps,snapshot.pdfs]);if(signature===key)return;signature=key;
     const nearBottom=$('#chat-scroll').scrollHeight-$('#chat-scroll').scrollTop-$('#chat-scroll').clientHeight<140;
-    host.innerHTML=messages.map(m=>`<div class="message${m.role==='user'?' user':''}">${m.role==='user'?'':'<span class="message-name">BILLY</span>'}<div style="white-space:pre-wrap">${esc(m.text)}</div></div>`).join('');
+    host.innerHTML=messages.map(m=>{
+      const outcome=renderChatOutcome(m.outcome,{esc,resourceURL});
+      return `<div class="message${m.role==='user'?' user':''}">${m.role==='user'?'':'<span class="message-name">BILLY</span>'}${outcome.summary}<div style="white-space:pre-wrap">${esc(m.text)}</div>${outcome.actions}</div>`;
+    }).join('');
+    host.querySelectorAll('[data-chat-rfp]').forEach(button=>button.onclick=()=>openRFP(button.dataset.chatRfp));
+    host.querySelectorAll('[data-chat-profile]').forEach(button=>button.onclick=()=>openCompany());
+    host.querySelectorAll('.chat-rfp-cover img').forEach(img=>{img.onerror=()=>{img.hidden=true;img.nextElementSibling.hidden=false;};});
     const footer=document.createElement('div');footer.className='agent-job';
-    footer.innerHTML=`<small>${esc(run.status==='running'?'Billy is working…':run.status==='waiting'?'Billy needs your input':run.status==='complete'?'Turn complete':'Work paused')} · ${steps.length} saved steps</small>${run.error?`<p>${esc(run.error)}</p><button id="agent-retry">Continue saved work ↗</button>`:''}${run.rfp_id?'<button id="agent-open-rfp">Open selected RFP ↗</button>':''}${run.status!=='running'?'<button id="agent-upload">Import previous response ↗</button>':''}`;
+    const selectedCardShown=messages.some(m=>m.outcome?.rfps?.some(r=>r.id===run.rfp_id));
+    footer.innerHTML=`<small>${esc(run.status==='running'?'Billy is working…':run.status==='waiting'?'Billy needs your input':run.status==='complete'?'Turn complete':'Work paused')}</small>${run.error?`<p>${esc(run.error)}</p><button id="agent-retry">Continue saved work ↗</button>`:''}${run.rfp_id&&!selectedCardShown?'<button id="agent-open-rfp">Open selected RFP ↗</button>':''}${run.status!=='running'?'<button id="agent-upload">Import previous response ↗</button>':''}`;
     host.append(footer);
     for(const pdf of (snapshot.pdfs||[]).filter(p=>p.rfp_id===run.rfp_id)){
       const card=document.createElement('a');card.className='agent-job';card.target='_blank';card.rel='noopener';

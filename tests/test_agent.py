@@ -23,6 +23,20 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):await server.agent.close()
 
+    async def test_profile_receipt_and_recommendation_cards_persist_without_pursuing(self):
+        rfp=(await server.create_rfp(server.RFPInput(title='Lighting upgrade',agency='Test city')))['id']
+        acts=iter([AgentAction(tool='save_fact',arguments={'field':'experience.services','value':'Lighting','quote':'We do lighting'}),AgentAction(tool='recommend',arguments={'recommendations':[{'rfp_id':rfp,'reason':'Lighting services fit the scope.'}]}),AgentAction(tool='ask',arguments={'message':'Which opportunity would you like to review?'})])
+        with patch('app.agent.complete',side_effect=lambda _: (next(acts),'test-model',{})):
+            await server.agent.message(AgentTurn(text='We do lighting. Recommend relevant RFPs.',request_id='cards'))
+            await server.agent.task
+        result=await server.agent.snapshot()
+        self.assertIsNone(result['run']['rfp_id'])
+        outcome=result['messages'][-1]['outcome']
+        self.assertEqual(outcome['summary'],'I updated your company profile.')
+        self.assertEqual(outcome['rfps'][0]['id'],rfp)
+        self.assertFalse(outcome['rfps'][0]['selected'])
+        self.assertEqual(outcome,(await server.agent.snapshot())['messages'][-1]['outcome'])
+
     async def test_real_tool_loop_persists_and_pauses_for_user(self):
         acts=iter([AgentAction(tool='company'),AgentAction(tool='opportunities'),AgentAction(tool='ask',arguments={'message':'Would you like to upload your previous response?'})])
         with patch('app.agent.complete',side_effect=lambda _: (next(acts),'test-model',{'prompt_tokens':10})):

@@ -97,3 +97,24 @@
 
 .idle-desk{display:block;width:100%;height:100%;object-fit:cover;filter:grayscale(1);opacity:.65}
 .billy-profile[data-state=idle] .billy-avatar{background:#e9ebe6}
+
+/* Saved outcomes stay beside the reply that produced them. */
+.chat-outcome-summary{margin:0 0 12px;font-weight:500;color:var(--green)}
+.message .chat-profile-link{border:0;background:none;border-radius:0;padding:0;margin:14px 0 0;font-size:12px;text-decoration:underline;text-underline-offset:4px;color:var(--green)}
+.chat-rfp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:14px;margin-top:20px}
+.message .chat-rfp-card{display:flex;flex-direction:column;min-width:0;width:100%;padding:0;margin:0;border:1px solid #dce3d6;border-radius:12px;background:#fff;overflow:hidden;text-align:left;color:var(--ink);box-shadow:0 3px 10px #243a2310;transition:border-color .15s,box-shadow .15s}
+.message .chat-rfp-card:hover{border-color:#8fa583;box-shadow:0 6px 18px #243a231a}
+.chat-rfp-card:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.chat-rfp-cover{display:flex;width:100%;height:190px;background:#e9ede5;padding:14px 18px;box-sizing:border-box;align-items:center;justify-content:center;border-bottom:1px solid #e5e9e0}
+.chat-rfp-cover img{display:block;max-width:100%;height:100%;object-fit:contain;box-shadow:0 2px 9px #0002;background:white}
+.chat-rfp-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;max-width:220px;color:#4e6548;font-size:14px;font-weight:500;line-height:1.5}
+.chat-rfp-placeholder small{font-size:10px;font-weight:400;color:var(--muted)}
+.chat-rfp-paper-icon{font-size:30px;font-weight:400;line-height:1}
+.chat-rfp-body{display:flex;flex-direction:column;flex:1;padding:16px;gap:8px;width:100%;box-sizing:border-box;overflow-wrap:anywhere}
+.chat-rfp-kind{font-size:9px;text-transform:uppercase;letter-spacing:.8px;color:var(--green)}
+.chat-rfp-body strong{font-size:13px;line-height:1.55;font-weight:600}
+.chat-rfp-agency{font-size:11px;color:var(--muted)}
+.chat-rfp-reason{font-size:11px;line-height:1.65;margin:4px 0 8px}
+.chat-rfp-bottom{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--line);margin-top:auto;font-size:10px;color:var(--green)}
+
+.chat-rfp-cards:has(>.chat-rfp-card:only-child){max-width:340px}

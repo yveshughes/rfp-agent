@@ -524,6 +524,9 @@ async def document_pdf(doc_id: str, download: bool=False):
     if not row: raise HTTPException(404)
     return FileResponse(path, media_type='application/pdf', filename=row['name'], content_disposition_type='attachment' if download else 'inline')
 
+from app.document_previews import register_document_previews
+document_preview = register_document_previews(app, db, DATA)
+
 from app.company import register_company
 company_profile, company_chat, company_evidence, company_task = register_company(app, db, event)
 
