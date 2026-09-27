@@ -19,7 +19,7 @@ export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,
     const nearBottom=$('#chat-scroll').scrollHeight-$('#chat-scroll').scrollTop-$('#chat-scroll').clientHeight<140;
     host.innerHTML=messages.map(m=>{
       const outcome=renderChatOutcome(m.outcome,{esc,resourceURL});
-      return `<div class="message${m.role==='user'?' user':''}">${m.role==='user'?'':'<span class="message-name">BILLY</span>'}${outcome.summary}<div style="white-space:pre-wrap">${esc(m.text)}</div>${outcome.actions}${renderChatAttachments(m.attachments,{esc,resourceURL})}</div>`;
+      return `<div class="message${m.role==='user'?' user':''}">${m.role==='user'?'':'<span class="message-name">BILLY</span>'}${m.text?'':outcome.summary}<div style="white-space:pre-wrap">${esc(m.text)}</div>${outcome.actions}${renderChatAttachments(m.attachments,{esc,resourceURL})}</div>`;
     }).join('');
     host.querySelectorAll('[data-chat-rfp]').forEach(button=>button.onclick=()=>openRFP(button.dataset.chatRfp));
     host.querySelectorAll('[data-chat-document]').forEach(button=>button.onclick=()=>openDocument(button.dataset.chatDocument));

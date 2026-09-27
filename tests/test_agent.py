@@ -80,8 +80,25 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(snap['run']['status'],'complete')
         self.assertEqual(provider.call_count,3)
         self.assertEqual([s['tool'] for s in snap['steps']],['company','finish'])
-        self.assertLessEqual(len(snap['messages'][-1]['text'].split()),60)
+        self.assertLessEqual(len(snap['messages'][-1]['text'].split()),40)
         self.assertIn('Insurance still needs confirmation',snap['messages'][-1]['text'])
+
+    async def test_explicit_detail_request_can_receive_a_fuller_reply(self):
+        detail=' '.join(['Useful detail.']*45)
+        action=AgentAction(tool='finish',arguments={'message':detail,'detail_request_quote':'Give me a detailed breakdown'})
+        with patch('app.agent.complete',return_value=(action,'test-model',{})) as provider:
+            await server.agent.message(AgentTurn(text='Give me a detailed breakdown of the saved profile.',request_id='details'))
+            await server.agent.task
+        self.assertEqual(provider.call_count,1)
+        self.assertEqual((await server.agent.snapshot())['messages'][-1]['text'],detail)
+
+    async def test_unmatched_detail_quote_does_not_bypass_concise_default(self):
+        actions=iter([AgentAction(tool='finish',arguments={'message':' '.join(['Detail']*70),'detail_request_quote':'Invented request'}),AgentAction(tool='finish',arguments={'message':'Your profile is updated. Do you have current insurance details?'})])
+        with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{})) as provider:
+            await server.agent.message(AgentTurn(text='Update my profile',request_id='short-default'))
+            await server.agent.task
+        self.assertEqual(provider.call_count,2)
+        self.assertLessEqual(len((await server.agent.snapshot())['messages'][-1]['text'].split()),40)
 
     async def test_provider_failure_never_becomes_success(self):
         with patch('app.agent.complete',side_effect=RuntimeError('Model unavailable')):
@@ -283,6 +300,21 @@ class ActionCompletionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'],'Queued')
         with self.assertRaises(ValueError):
             await server.agent.execute(snap['run']['id'],'queue_followup',{'field':'insurance.coverage','title':'Different task','quote':'es'})
+
+    async def test_agenda_question_is_in_agent_context_for_short_answer(self):
+        from app.agent import DiscussionContext
+        from app.discussion import DiscussionTurn
+        from app.discussion_agenda import build_agenda
+        item=next(i for i in build_agenda(server.db)['items'] if i['id']=='insurance')
+        await server.discuss(DiscussionTurn(**item['context'],action='start',opening_question=item['question']))
+        seen=[]
+        def provider(messages):
+            seen.append(messages.copy())
+            return AgentAction(tool='ask',arguments={'message':'Please attach the certificate here.'}),'test-model',{}
+        with patch('app.agent.complete',side_effect=provider):
+            await server.agent.message(AgentTurn(text='Yes',context=DiscussionContext(**item['context']),request_id='agenda-handoff'))
+            await server.agent.task
+        self.assertTrue(any(m['role']=='assistant' and m['content']==item['question'] for m in seen[0]))
 
     async def test_invalid_completion_review_recovers_without_repeating_tools(self):
         question=AgentAction(tool='ask',arguments={'message':'What is your company website? I’ll use it to find suitable RFPs.'})

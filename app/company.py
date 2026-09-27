@@ -123,7 +123,7 @@ def register_company(app, db, event):
                 stage='coverage_answer_example'
             elif req.action=='ask':
                 message(c,req.field,'user',f'Let’s review {FIELDS[req.field].lower()}.')
-                reply=('Do you have general liability insurance? Tell me yes, no, or not sure. We’ll check the exact limits and dates against the RFP.' if req.field=='insurance.coverage' else f'What should I record for {FIELDS[req.field].lower()}? You can describe it in your own words. I’ll save it as information you’ve provided, with supporting documents added separately.')
+                reply=('Do you have a current insurance certificate we can add? If not, tell me what coverage you have.' if req.field=='insurance.coverage' else f'What should I record for {FIELDS[req.field].lower()}? Tell me in your own words.')
                 stage='coverage_answer' if req.field=='insurance.coverage' else ''
             else:
                 message(c,req.field,'user',text)

@@ -25,7 +25,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
       $('#discuss-voice-note').textContent=config.voice_ready?'Record → review transcript → send. Audio goes to Meta for transcription.':'Voice is not connected yet. You can discuss by text now.';
     }catch(e){$('#discuss-voice-note').textContent='Could not check the voice connection. Text is still available.';}controls();
   }
-  async function turn(text,action='answer'){
+  async function turn(text,action='answer',opening_question=''){
     if(busy||recording||startingMic)return false;
     if(action==='answer'&&sendAgent){
       const sent=await sendAgent(text,context);
@@ -33,7 +33,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
       return sent;
     }
     const token=generation;busy=true;controls();motion('thinking');$('#discuss-status').textContent='Billy is considering your answer…';
-    try{const result=await api('/discussion',{...context,text,action});render(result);await onSaved();
+    try{const result=await api('/discussion',{...context,text,action,opening_question});render(result);await onSaved();
       $('#discuss-status').textContent='';
       if(token===generation&&visible&&!document.hidden&&action==='answer'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){
         speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(result.messages.at(-1).text);speech.rate=1.05;speech.onend=speech.onerror=()=>motion('ready');motion('speaking');speechSynthesis.speak(speech);
@@ -42,7 +42,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
     }catch(e){toast(e.message);$('#discuss-status').textContent='Not sent. Your answer is still here.';motion('ready');return false;}
     finally{busy=false;controls();}
   }
-  async function open(next={},label='Discuss with Billy',action='start'){
+  async function open(next={},label='Discuss with Billy',action='start',question=''){
     if(busy||startingMic){toast('Finish this turn before switching discussions.');return;}
     await stopRecording(true);window.speechSynthesis?.cancel();
     drafts.set(key(context),$('#discuss-input').value);context=next;active=true;
@@ -50,7 +50,7 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
     $('#discuss-context').textContent=label;$('#discuss-sidebar-context').textContent=label;$('#discuss-empty').hidden=true;$('#discuss-insights').hidden=false;$('#discuss-session').hidden=false;
     $('#chat-scroll').hidden=true;$('#chat-form').hidden=true;$('#company-chat-context').hidden=true;showView('chats');
     motion('ready');configure();
-    if(await turn('',action))$('#discuss-input').focus();
+    if(await turn('',action,question))$('#discuss-input').focus();
   }
   async function stopRecording(discard=false){
     if(!recording)return;const captured=recording;recording=null;
@@ -73,8 +73,6 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
   $('#discuss-form').onsubmit=async e=>{e.preventDefault();const text=$('#discuss-input').value.trim();if(text&&await turn(text)){$('#discuss-input').value='';drafts.delete(key(context));}};
   $('#discuss-input').oninput=()=>drafts.set(key(context),$('#discuss-input').value);
   $('#discuss-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#discuss-form').requestSubmit();}};
-  $('#discuss-start').onclick=()=>open();
-  $('#discuss-insurance').onclick=()=>open({field:'insurance.coverage'},'Company Profile · Insurance','insurance_example');
   $('#discuss-end').onclick=async()=>{generation++;await stopRecording(true);window.speechSynthesis?.cancel();active=false;onState(null);$('#discuss-session').hidden=true;$('#chat-scroll').hidden=false;$('#chat-form').hidden=false;};
   $('#discuss-read-aloud').onchange=()=>{if(!$('#discuss-read-aloud').checked){window.speechSynthesis?.cancel();motion('ready');}};
   $('#discuss-return').onclick=()=>{showView('chats');if(active)$('#discuss-input').focus();else open(context,$('#discuss-context').textContent);};

@@ -21,6 +21,16 @@ class DiscussionTests(unittest.IsolatedAsyncioTestCase):
     async def turn(self,text='',**kw):
         return await server.discuss(DiscussionTurn(text=text,**kw))
 
+    async def test_agenda_topic_opens_exact_question_without_saving_a_fact(self):
+        await self.turn(action='start',field='company.overview')
+        before=await server.company_profile()
+        question='Do you have a current insurance certificate we can add?'
+        result=await self.turn(action='start',field='insurance.coverage',opening_question=question)
+        self.assertEqual(result['messages'][-1]['text'],question)
+        self.assertEqual(await server.company_profile(),before)
+        with server.db() as c:
+            self.assertEqual(c.execute('SELECT field FROM discussion_context WHERE scope="company:insurance.coverage"').fetchone()['field'],'insurance.coverage')
+
     async def test_example_extracts_then_waits_for_explicit_acceptance(self):
         await self.turn(action='insurance_example',field='insurance.coverage')
         result=await self.turn('We have 1M through the Hartford in liability coverage.',field='insurance.coverage')
