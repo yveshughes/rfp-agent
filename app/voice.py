@@ -13,13 +13,15 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 
 TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens'
+# Ephemeral tokens open sessions only on the constrained endpoint, passed as access_token.
+SOCKET_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 DEFAULT_MODEL = 'gemini-3.8-live'
 TOKEN_LIFETIME = timedelta(minutes=30)
 NEW_SESSION_WINDOW = timedelta(minutes=2)
 
-VOICE_INSTRUCTION = '''You are the voice of Billy, an RFP agent. You are not Billy: Billy is a separate agent that reads documents, saves company facts and prepares proposals. You only listen and speak for him.
-Rules: for anything about the company, its documents, RFPs, opportunities, drafts, deadlines or Billy's work, call ask_billy with the user's request in their own words and speak Billy's reply naturally, without adding facts of your own. Never answer those questions yourself, never invent company details, prices, insurance, qualifications or deadlines, and never claim work was done unless Billy's reply says so.
-If ask_billy reports that Billy is still working, say briefly that he is on it, and use billy_reply when the user asks what he found. Keep every turn short, warm and practical, like a colleague on the phone. Greetings, small talk and clarifying what the user wants can be handled directly. Billy cannot submit, email, sign or buy anything; if asked, say the user submits through the agency after review.'''
+VOICE_INSTRUCTION = '''You are Billy, an RFP agent, speaking with the user by phone. Speak in the first person as Billy, warm and practical, in one or two short sentences per turn.
+You have no memory of the company, its documents, RFPs, opportunities, drafts, deadlines or your own work: all of that lives in your workspace, which you reach ONLY through the ask_billy function. Whenever the user asks about or requests anything involving the company, documents, RFPs, opportunities, proposals, drafts, deadlines, profile details or what you are working on, you MUST call ask_billy with their request in their own words before answering, then relay its reply faithfully. Never guess, never invent company details, prices, insurance, qualifications, deadlines or results, and never claim work was done unless the reply says so. Do not describe yourself as an AI assistant.
+If ask_billy says you are still working, tell the user briefly that you are on it; when they ask what you found, call billy_reply. Greetings, thanks and clarifying what the user wants can be answered directly. You cannot submit, email, sign or buy anything; the user submits through the agency after reviewing your draft.'''
 
 FUNCTIONS = [
     {'name': 'ask_billy',
@@ -73,9 +75,11 @@ def register_voice(app, event):
         expires = now + TOKEN_LIFETIME
         new_session = now + NEW_SESSION_WINDOW
         stamp = lambda t: t.strftime('%Y-%m-%dT%H:%M:%SZ')
-        body = {'uses': 1, 'expireTime': stamp(expires), 'newSessionExpireTime': stamp(new_session),
-                'liveConnectConstraints': {'model': 'models/' + live_model(),
-                                           'config': {'responseModalities': ['AUDIO'], 'sessionResumption': {}}}}
+        # REST spells the lock as bidiGenerateContentSetup (the SDK calls it live_connect_constraints).
+        # The whole session setup is locked into the token: model, audio output, Billy's voice
+        # instruction and the two functions. A client cannot widen what the voice may do.
+        setup = setup_config()
+        body = {'uses': 1, 'expireTime': stamp(expires), 'newSessionExpireTime': stamp(new_session), 'bidiGenerateContentSetup': setup}
         try:
             import asyncio
             result = await asyncio.to_thread(request_token, body)
@@ -87,7 +91,8 @@ def register_voice(app, event):
             raise HTTPException(502, 'Gemini returned no voice session token.')
         event('voice', 'Voice session opened', f'Gemini Live · {live_model()} · token valid until {stamp(expires)}')
         return {'token': name, 'model': live_model(), 'expires_at': stamp(expires), 'new_session_expires_at': stamp(new_session),
-                'setup': setup_config(),
+                'setup': setup,
+                'socket': {'url': SOCKET_URL, 'token_parameter': 'access_token'},
                 'audio': {'input': {'mime_type': 'audio/pcm;rate=16000', 'rate': 16000}, 'output': {'rate': 24000}},
                 'note': 'The token opens one Live session. Function calls run in the browser against this workspace only.'}
 
