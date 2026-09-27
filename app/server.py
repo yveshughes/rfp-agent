@@ -48,6 +48,9 @@ def catalog_db():
 WATCH_LIMIT = int(os.environ.get('BILLY_WATCH_LIMIT', '10'))
 ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
 ALLOWED_ORIGINS = set(os.environ.get('BILLY_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081').split(','))
+# Hosts the private API answers to: loopback, plus an authenticated reverse proxy hostname
+# (NetBird) whose proxy performs the login before traffic reaches this loopback listener.
+ALLOWED_HOSTS = {'localhost', '127.0.0.1', 'testserver'} | {h.strip().lower() for h in os.environ.get('BILLY_PUBLIC_HOSTS', '').split(',') if h.strip()}
 
 def db():
     c = sqlite3.connect(DB,factory=ClosingConnection)
@@ -249,8 +252,8 @@ app = FastAPI(lifespan=lifespan)
 @app.middleware('http')
 async def local_access(request: Request, call_next):
     # This service is reached locally or through an SSH tunnel, not public nginx.
-    host = request.headers.get('host','').split(':')[0]
-    if host not in ('localhost','127.0.0.1','testserver'):
+    host = request.headers.get('host','').split(':')[0].lower()
+    if host not in ALLOWED_HOSTS:
         return Response('Use the local workspace connection.', status_code=403)
     origin = request.headers.get('origin')
     if origin and origin not in ALLOWED_ORIGINS:

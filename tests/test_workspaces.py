@@ -27,6 +27,17 @@ class CompanyWorkspacesTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status_code, 200, result.text)
         return result.json()['id']
 
+    async def test_reverse_proxy_hostname_is_accepted_only_when_configured(self):
+        default=self.directory.default
+        for host in ('billy.abc123.us.proxy.netbird.io','evil.example'):
+            response=await self.client.get('/api/workspaces',headers={'host':host})
+            self.assertEqual(response.status_code,403,host)
+        with patch.object(default,'ALLOWED_HOSTS',default.ALLOWED_HOSTS|{'billy.abc123.us.proxy.netbird.io'}):
+            ok=await self.client.get('/api/workspaces',headers={'host':'Billy.abc123.us.proxy.netbird.io'})
+            self.assertEqual(ok.status_code,200)
+            still=await self.client.get('/api/workspaces',headers={'host':'evil.example'})
+            self.assertEqual(still.status_code,403)
+
     async def test_company_data_files_browser_and_inflight_jobs_are_separate(self):
         a, b = await self.create('Company A'), await self.create('Company B')
         async def get(w, path):

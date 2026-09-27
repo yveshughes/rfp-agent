@@ -59,7 +59,8 @@ All secrets belong in the server environment, never frontend JavaScript or versi
 | `BILLY_SOURCES` | `<repo>/rfpsonar-found-rfp-sources.json`; optional private JSON directory |
 | `BILLY_WATCH_LIMIT` | `10`; per-company source allowance |
 | `BILLY_ENVIRONMENT` | `This Mac`; display label, not routing configuration |
-| `BILLY_ORIGINS` | localhost and 127.0.0.1 on ports 8080 and 8081, comma-separated; add the actual development origin |
+| `BILLY_ORIGINS` | localhost and 127.0.0.1 on ports 8080 and 8081, comma-separated; add the actual development origin or the reverse-proxy origin |
+| `BILLY_PUBLIC_HOSTS` | Empty; comma-separated hostnames the API also answers to, for an authenticated reverse proxy (NetBird) in front of the loopback listener |
 | `VULTR_SERVERLESS_INFERENCE_API_KEY` | No default; enables main agent with the model ID |
 | `BILLY_VULTR_MODEL` | No default; deployment baseline `glm-5.3`; must match returned provider model |
 | `BILLY_INFERENCE_BUDGET_USD` | `100`; shared cumulative estimated usage/reservations, not a billing subscription or daily reset |
