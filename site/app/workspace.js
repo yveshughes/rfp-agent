@@ -66,7 +66,7 @@ const discussionAgenda=createDiscussionAgenda({api,esc,onSelect:item=>discussion
 let chatSuggestions,autopilot,liveVoice;
 const documentReview=createDocumentReview({esc,resourceURL:path=>API+path,openDocument,openBrowser:expandBrowser});
 let reviewSnapshot=null;
-const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateModelSetting(snapshot?.config);updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},importDocument:()=>companyProfile.documents()});
 autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
 // Live voice: Gemini listens and speaks; ask_billy routes every workspace question through the agent.
 // What the page shows when a call starts. Billy's voice opens with it; facts still come from ask_billy.
@@ -113,6 +113,12 @@ $('#voice-sample').onclick=async()=>{
 $('#voice-select').onchange=async()=>{const select=$('#voice-select');select.disabled=true;try{await api('/voice/settings',{voice:select.value});toast(select.value?`Billy will use ${select.value} on the next call.`:'Billy will use the default voice on the next call.');await liveVoice.configure();}catch(e){toast(e.message);}finally{await loadVoiceSetting();}};
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>suggestedPrompts(agentChat.getSnapshot())});
+// Settings → Connections reflects the real inference configuration reported by the backend.
+function updateModelSetting(config){
+  const text=$('#model-setting'),badge=$('#model-status');if(!text||!badge||!config)return;
+  if(config.configured){text.textContent=`${config.provider} · ${config.model}. Billy’s reasoning, opportunity selection and drafting run through this model; source lookup, browser inspection and PDF extraction work on the VM independently.`;badge.textContent='Connected';badge.className='badge';}
+  else{text.textContent='Open-ended reasoning and proposal drafting need a model connection. Source lookup, browser inspection and PDF extraction work independently.';badge.textContent='Not connected';badge.className='badge amber';}
+}
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
