@@ -54,7 +54,7 @@ Private working folders such as `planning/`, `research/`, root `docs/`, `.privat
 
 ## Deployment and access
 
-`deploy/install.sh` publishes only `site/` through nginx. `deploy/install-app.sh` installs the private API as a non-root systemd service at `127.0.0.1:8787`. Reach it through an authorized SSH tunnel. Public HTTPS, authentication, tenant authorization and NetBird ingress are not implemented. See the [runbook](app/docs/operations.md); do not expose the private API through public nginx.
+`deploy/install.sh` publishes only `site/` through nginx. `deploy/install-app.sh` installs the private API as a non-root systemd service on port 8787, which the firewall exposes only on the NetBird interface. Reach it through NetBird: the authenticated reverse-proxy Service over HTTPS, or peer-to-peer from an enrolled machine at the VM’s NetBird address. SSH remains for administration. Per-user accounts and tenant authorization inside the app are not implemented; NetBird’s login is the gate. See the [runbook](app/docs/operations.md); do not expose the private API through public nginx.
 
 ## Evidence and delivery boundaries
 

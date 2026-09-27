@@ -20,6 +20,7 @@ Implementation baseline: `4140a21`. “Implemented” describes available code, 
 | Review PDF | Immutable PDF with page count/section versions; stale detection after edits | Review copy, not a validated submission package; exact fonts/forms/attachments require checking |
 | Review and submit | Shows PDF, gaps and deadline; review checkbox then link to agency source/instructions | No automated submission, signature, email, purchase or Responded transition |
 | Browser | Per-company Chromium on VM, screenshots, take-control/hand-back, explicit approvals | Browser context not durable; side-effect detection is not universal |
+| Private access | NetBird: VM enrolled as a peer; authenticated HTTPS reverse-proxy Service for reviewers; direct peer-to-peer from the owner's Mac; firewall admits the API only on the NetBird interface | No accounts inside the app; NetBird login is the gate; revocation happens in the NetBird dashboard |
 | Voice | Call Billy: full-duplex conversation through Gemini Live with interruption; every workspace question is routed through `ask_billy` to the main agent, so replies come from GLM and are persisted in chat; optional Meta push-to-talk transcription remains; Settings picks the voice per workspace; a live waveform card sits in front of the call while chat updates behind it | Audio and Billy's replies go to Google; no session persistence across page loads; small talk is not saved; spoken answers depend on the agent finishing within the wait window, otherwise Billy says he is still working |
 
 ## Continuous Autopilot contract
@@ -40,4 +41,4 @@ The 80-action bound applies to **each item**, not the whole queue. The shared in
 
 ## What is not implemented
 
-Public authentication/authorization, NetBird access, automatic delivery, procurement-account integration, off-VM object storage, scheduled off-VM backups, durable distributed workers, vector/embedding search, guaranteed exhaustive portal coverage, external notifications and live conversational voice are future work. No subscription billing is connected. The source watch limit is only a local entitlement mechanism.
+In-app authentication/authorization, automatic delivery, procurement-account integration, off-VM object storage, scheduled off-VM backups, durable distributed workers, vector/embedding search, guaranteed exhaustive portal coverage, external notifications and live conversational voice are future work. No subscription billing is connected. The source watch limit is only a local entitlement mechanism.

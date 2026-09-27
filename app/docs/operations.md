@@ -8,15 +8,18 @@ This runbook describes the private single-owner deployment. Get the actual host,
 |---|---|
 | Checkout | `/opt/rfp-agent` |
 | Backend service | `billy.service`, non-root user/group `billy` |
-| Private listener | `127.0.0.1:8787`, one Uvicorn process |
+| Private listener | `0.0.0.0:8787`, one Uvicorn process; firewall admits 8787 only on the NetBird interface `wt0` |
 | Runtime data | `/var/lib/billy/workspace` |
 | Private source directory | `/var/lib/billy/rfp-sources.json` |
 | Inference environment | `/etc/billy/inference.env`, root-owned mode 600 |
 | Browser binaries | `/opt/billy-browsers`, root-owned, not writable by `billy` |
 | Public static root | `/var/www/rfp-agent`, nginx port 80 |
-| Local demo access | SSH forward `127.0.0.1:8081 → server 127.0.0.1:8787` |
+| NetBird | Peer `rfp-agent` (NetBird Cloud, client 0.79); `BILLY_PUBLIC_HOSTS` lists the NetBird IP, FQDN and proxy hostname |
+| Reviewer access | NetBird Reverse Proxy Service → peer port 8787, PIN/SSO at the proxy, automatic TLS |
+| Owner peer access | `http://<vm-netbird-ip>:8787/app/` from an enrolled Mac; plain http, so no microphone |
+| Local demo access | SSH forward `127.0.0.1:8081 → server 127.0.0.1:8787` (still works; administration path) |
 
-The public app HTML does not grant access to the private API. Keep that API off public nginx. The installers do not provide HTTPS, accounts, NetBird, off-VM backups or automatic Git deployment.
+The public app HTML does not grant access to the private API. Keep that API off public nginx. The installers do not enroll NetBird, and do not provide in-app accounts, off-VM backups or automatic Git deployment. NetBird enrollment is manual: install the client, `netbird up --setup-key`, add the `ufw allow in on wt0 to any port 8787 proto tcp` rule, set `BILLY_PUBLIC_HOSTS` and `BILLY_ORIGINS`, restart. Revoking access is done in the NetBird dashboard.
 
 ## First installation
 

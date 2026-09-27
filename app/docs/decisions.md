@@ -4,7 +4,7 @@ This is an implementation handoff, not a promise that planned integrations exist
 
 | Decision | Why it exists | When to revisit |
 |---|---|---|
-| Private single-owner service over SSH | Enables a working demonstration without claiming tenant security | Before anyone outside the trusted owner accesses company evidence |
+| Private single-owner service behind NetBird | No public application port; NetBird authenticates reviewers at its proxy and connects the owner peer-to-peer | Before multiple reviewers need separate in-app permissions |
 | Separate runtime and DB/files per company | Binds jobs to the correct company's state; preserves default workspace compatibility | Before multi-process scaling or real authorization |
 | Shared catalog, private pursuit/drafts | Discovery benefits every business; company relevance and response work stay local | When deduplication/update ownership needs richer semantics |
 | Plain frontend modules | Small build footprint and direct inspectability | When UI complexity justifies a build system; preserve cache invalidation |
@@ -19,7 +19,7 @@ This is an implementation handoff, not a promise that planned integrations exist
 
 ## Priority work for a production handoff
 
-1. **Identity and access:** authenticated HTTPS ingress, authorization on every workspace and file request, explicit admin permissions. NetBird remains a candidate access layer, not implemented tenant authorization.
+1. **Identity and access:** NetBird provides the authenticated ingress; the app still needs per-user authorization on every workspace and file request and explicit admin permissions before more than one trusted reviewer shares it.
 2. **Durability:** encrypted off-VM backups, retention/restore drills, object storage if appropriate. Decide recovery objectives; current on-VM files alone do not meet disaster recovery.
 3. **Durable execution:** recoverable job ownership, retry/idempotency semantics, restart policy and scheduler coordination. Do not solve this by increasing Uvicorn workers.
 4. **Evidence and relevance evaluation:** fixtures plus live authorized source tests, date/timezone accuracy, unavailable portal behavior, incomplete extraction, stale company facts and model hallucination checks.

@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-  UI[Browser: site/app ES modules] -->|Private SSH connection| API[FastAPI / Uvicorn on loopback]
+  UI[Browser: site/app ES modules] -->|NetBird: authenticated HTTPS proxy or peer-to-peer| API[FastAPI / Uvicorn, port 8787 on the NetBird interface only]
   API --> DIR[WorkspaceDirectory]
   DIR --> R[Company runtime]
   R --> AG[Agent task / sequential Autopilot]
@@ -41,7 +41,7 @@ Public nginx serves a copy of `site/` separately. It does not proxy the private 
 | Vultr Serverless Inference | OpenAI-compatible chat-completions protocol; configured model, deployed baseline `glm-5.3` |
 | Gemini Live (optional) | Voice conversation: the server mints a single-use token with Billy's instruction and two functions locked in; the browser streams 16 kHz PCM in and plays 24 kHz PCM out; `ask_billy` posts to the agent API. Gemini never chooses agent actions |
 | Optional Meta transcription | Push-to-talk transcript into the editable composer; separate from the main Vultr agent |
-| systemd / nginx / SSH | Private backend, public static pages, private operator access |
+| systemd / nginx / NetBird / SSH | Private backend, public static pages, NetBird reviewer and peer access, SSH administration |
 | macOS launchd | Existing demo operator's automatic tunnel reconnection; external host configuration |
 | Mermaid 12.0.0 / Google Fonts | Public technical diagram and typography; CDN/font fallbacks |
 
