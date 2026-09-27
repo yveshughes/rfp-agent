@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><script>// The workspace is private. Served from the public http site, this page forwards to the owner's
-// private connection; served over HTTPS through the authenticated NetBird proxy it runs in place.
-if(!["localhost","127.0.0.1"].includes(location.hostname)&&location.protocol==="http:")location.replace("http://localhost:8081/app/"+location.search+location.hash);</script><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=voice-sample-1"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><script>// The workspace is private. Served from the public http site (port 80), this page forwards to the
+// owner's private connection; reached over NetBird, peer-to-peer or through the authenticated
+// proxy, it runs in place.
+if(!["localhost","127.0.0.1"].includes(location.hostname)&&location.protocol==="http:"&&["","80"].includes(location.port))location.replace("http://localhost:8081/app/"+location.search+location.hash);</script><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=voice-sample-1"></head>
 <body>
 <div class="workspace" id="workspace">
   <aside class="navigation" aria-label="Main navigation">
