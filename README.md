@@ -1,53 +1,67 @@
-# RFP Agent
+# RFP Agent — Billy
 
-An always-on agent, working on your behalf to win RFP opportunities. This repository contains the product pitch and technical overview.
+Billy helps a business turn its existing company knowledge into responses to relevant RFPs. It discovers opportunities, reads source documents, saves cited company facts and requirement gaps, drafts responses, and generates PDFs for human review.
+
+**Current implementation:** a private, single-owner workspace with multiple company profiles, running on a Vultr VM. Main chat and Autopilot use Vultr Serverless Inference. Continuous Autopilot prepares suitable RFPs one after another; final submission remains with the user. This is a working prototype, not a public multi-tenant service.
 
 Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
 
-## Current status
+## New engineer? Start here
 
-The pitch and technical reference are publicly hosted on Vultr. The first **Billy workspace** now includes the five-section UI, all-source lookup, a real Chromium session with watch/take-control controls, PDF page-range import, saved research, activity and approval handling. Its private API and browser run on Vultr, reached from the Mac through an SSH tunnel. See [app setup and limitations](app/README.md).
+1. Read the [engineering handoff](app/README.md) for the reading order and system boundaries.
+2. Follow [local development](app/docs/development.md) to run an isolated workspace.
+3. Read [architecture](app/docs/architecture.md), then [data and API contracts](app/docs/data-api.md).
+4. Use the [operations runbook](app/docs/operations.md) before touching the deployment or customer data.
 
-Open-ended model chat, semantic evidence matching, proposal generation, voice revision and NetBird integration are not connected yet. The public `/app/` entry remains separate from the locally connected workspace until authenticated public ingress is ready. Source lookup uses actual directory records; the animation is decorative and does not indicate a completed agent action.
+[Capabilities and limitations](app/docs/capabilities.md) · [Testing](app/docs/testing.md) · [Decisions and next work](app/docs/decisions.md)
 
-The 6,222 figure is the size of the source directory collected for this project. It does not describe verified portals, active RFPs, or completed agent searches. The raw directory and research documents are not distributed in this repository.
+These documents describe implementation baseline `393619c` (September 26, 2026). Source code remains authoritative; environment-specific receipts and credentials are not in Git.
 
-## Preview locally
+## Run the app locally
 
-No build step or dependency installation is required:
+Requires Python 3.12, `uv`, and the system packages described in the development guide.
+
+```sh
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -r tests/requirements.txt
+.venv/bin/python -m playwright install chromium
+.venv/bin/python -m uvicorn app.server:app --host 127.0.0.1 --port 8081
+```
+
+Open [the workspace](http://localhost:8081/app/). Without inference credentials, manual workspace features remain available. Without a supplied source directory, Sources is empty; the private directory is intentionally excluded from this repository. Do not run a local server on 8081 while a deployment tunnel owns that port.
+
+For the **static pitch only**, with no application backend:
 
 ```sh
 python3 -m http.server 8080 --directory site
 ```
 
-Open http://localhost:8080. The technical overview lives at `/technical/`. Fonts are requested from Google Fonts, with system fallbacks. The technical page loads pinned Mermaid 12.0.0 from jsDelivr and renders `site/assets/workflow.mmd`; the written workflow remains available if the diagram cannot load. The decorative hero video has a pause control and respects reduced-motion preferences.
+Open [the pitch](http://localhost:8080/) or [technical overview](http://localhost:8080/technical/). A static preview is not a connected backend. On port 8080, the app frontend points its API at loopback port 8081.
 
-## Deploy on Vultr
+## Repository map
 
-Use a small Ubuntu or Debian VM. Copy or clone this repository onto it and run:
+| Path | Purpose |
+|---|---|
+| `app/` | Python API, agent orchestration, evidence processing, SQLite persistence |
+| `app/docs/` | Versioned engineering handoff and operating procedures |
+| `site/app/` | Plain JavaScript workspace UI; no frontend build step |
+| `site/technical/`, `site/assets/workflow.mmd` | Public technical explanation and workflow diagram |
+| `site/` | Public pitch, shared assets, technical page and app frontend |
+| `deploy/` | Separate public nginx and private systemd installers |
+| `tests/` | Python and Node regression tests |
 
-```sh
-sudo sh deploy/install.sh
-```
+Private working folders such as `planning/`, `research/`, root `docs/`, `.private/`, recordings and datasets are ignored. Root `docs/` can contain user proposal files; it is **not** the engineering documentation folder. Never force-add these folders to make a handoff “complete.”
 
-The installer serves **only `site/`** through nginx. Repository files, planning materials, and credentials are never copied into the web root. Allow HTTP ingress for this public preview; configure HTTPS with your domain before adding application accounts or uploading documents. The eventual application can use a separate NetBird-protected service.
+## Deployment and access
 
-## Technical decision record
+`deploy/install.sh` publishes only `site/` through nginx. `deploy/install-app.sh` installs the private API as a non-root systemd service at `127.0.0.1:8787`. Reach it through an authorized SSH tunnel. Public HTTPS, authentication, tenant authorization and NetBird ingress are not implemented. See the [runbook](app/docs/operations.md); do not expose the private API through public nginx.
 
-The technical page’s **Key decisions** section (`/technical/#decisions`) records deployed choices, rationale, tradeoffs and verification evidence for technical Q&A. Update it when hosting, access, persistence, model-provider or deployment decisions change. Keep completed infrastructure separate from planned agent capabilities, and exclude credentials and billing details.
+## Evidence and delivery boundaries
 
-## Repository boundaries
+Company facts retain document, website or user-statement provenance. A quotation is evidence of what the source says, not independent verification of current insurance, staffing, rates or eligibility. Review PDFs preserve saved section versions; manual review is still required. Billy has no submission, email, signing, purchasing, shell or arbitrary HTTP tool. The review handoff opens agency instructions; it does not send a bid.
 
-The root `.gitignore` allows only `site/`, `app/`, `tests/`, `deploy/`, this README, the license, and the ignore file. Local plans, presentation scripts, recordings, research, datasets, and temporary files remain outside version control. The proprietary RFP source directory is not included or licensed with this repository. Explicit ignore rules also exclude its local/deployment filenames at any directory depth. Supply your own source data through `BILLY_SOURCES`. Audit the staged file list before every publication.
+The historical demo directory contains 6,222 records. That is not a count of verified portals, active opportunities or integrations. Use your own authorized source data via `BILLY_SOURCES`.
 
-## Assets and license
+## License and assets
 
-Code: MIT. The decorative hero animation was generated with Higgsfield / Seedance 2.0 for this project and optimized for web playback. It is an illustration of the product vision, not evidence of an actual contract award. The GitHub mark comes from Primer Octicons; its MIT notice is included in `site/assets/github-LICENSE.txt`. No endorsement or affiliation with any example proposal owner is implied.
-
-### Billy's model-driven agent
-
-Main chat runs a persistent tool loop through **Vultr Serverless Inference**, using the configured `BILLY_VULTR_MODEL` (validated deployment: `glm-5.3`). It reads company facts, compares watched opportunities, inspects RFP originals, opens source pages in the VM browser, selects an RFP, asks for prior responses, records cited requirement gaps, extracts company facts, and saves versioned draft sections. Tool steps, provider/model identifiers, usage estimates, and user questions persist in SQLite. After a restart or failed request, continue from saved work.
-
-Place `VULTR_SERVERLESS_INFERENCE_API_KEY`, `BILLY_VULTR_MODEL=glm-5.3`, and `BILLY_INFERENCE_BUDGET_USD=100` in `/etc/billy/inference.env` (root-owned, mode 600). The service reads this optional file; never put credentials in the frontend or repository. The application estimates usage at the verified GLM 5.3 rates and reserves a conservative request allowance before calling inference. This is an application cap, not a Vultr account-wide billing limit.
-
-Agent-extracted facts retain their evidence or user-statement provenance; they are not independently verified. Review PDFs are generated from saved sections and linked in chat and Artifacts. Copies are immutable and marked stale after section edits; page limits, signatures, placeholders and required attachments still need review. Delivery is not connected. No email, submission, shell, or arbitrary HTTP tool is exposed to the model. Existing manual/guided profile conversations remain separate from the main agent chat.
+Code: MIT. The proprietary source directory and private proposals are not included or licensed by this repository. Billy’s generated imagery and animation illustrate his activity; they are not proof of a completed action or contract award. The original hero animation used Higgsfield / Seedance 2.0. The GitHub mark is from Primer Octicons; its notice is in `site/assets/github-LICENSE.txt`. No endorsement by demonstration proposal owners is implied.

@@ -1,29 +1,26 @@
 flowchart TD
-    accTitle: Billy's live-tested workflow and remaining delivery integration
-    accDescr: GLM 5.3 through Vultr Serverless Inference selects bounded tools on the Vultr VM. The tested flow reads company facts, chooses an RFP, reads all extracted proposal pages, saves cited gaps and drafts, and generates an immutable review PDF. NetBird access and approval-bound delivery are planned.
-    A["Your request + company profile"] --> B["Billy agent on Vultr VM"]
-    B <-->|"Next action / tool results"| M["GLM 5.3 · Vultr Serverless Inference"]
-    subgraph V["Saved work on Vultr · bounded tools"]
-      B --> C["Compare opportunities + read original RFP"]
-      C --> D["Select match + open source in VM browser"]
-      D --> E["Ask to upload or reuse a prior response"]
-      E --> F["Read every extracted page + cite requirements"]
-      F --> G["Save gaps + versioned response sections"]
-      G --> H["Discuss missing facts with you"]
-      H --> I["Save reported facts + approved follow-ups"]
-      I --> G
-      G --> P["Immutable review PDF · page count + versions"]
-    end
-    P --> R["You review · unresolved facts stay visible"]
-    R -->|"Request edits"| H
-    N["Next: NetBird reviewer access"] -.-> R
-    R -.-> S["Next: approve exact version + recipient"]
-    S -.-> T["Next: test delivery + recorded result"]
+    accTitle: Billy's continuous preparation and human review workflow
+    accDescr: Company evidence and shared opportunities feed a sequential Autopilot queue on Vultr. Billy picks an RFP into My RFPs as Researching, saves cited requirements and drafts, exports a review PDF, and continues to the next suitable RFP without waiting for human review. The user reviews each response and follows agency submission instructions. Automated delivery is not connected.
+    A["Company files, website and reported facts"] --> B["Saved company profile and source citations"]
+    C["Watched-source discoveries + shared catalog"] --> D["Evaluate fit, geography and deadlines"]
+    B --> D
+    U["Start Autopilot"] --> D
+    D --> E["Pick one RFP → My RFPs: Researching"]
+    E --> F["Read extracted originals + cite requirements"]
+    F --> G["Save sections + explicit gaps → Drafting"]
+    G --> H["Current review PDF → Ready for review"]
+    H -->|"Immediately find next suitable match"| D
+    F -->|"Individual source blocker"| K["Retain reason and skip this item"]
+    K --> D
+    H --> R["You review PDF, deadline and unresolved details"]
+    R --> S["Open agency source and submission instructions"]
+    S --> T["You submit through the agency; Billy sends nothing"]
+    D -->|"No suitable matches or whole-job blocker"| X["Stop with a reason"]
+    P["Pause / Continue preserves queue progress"] -.-> D
+    M["Vultr inference chooses bounded actions; VM stores work"] -.-> F
     classDef work fill:#e6ecdf,stroke:#8caa7c,color:#172b29
     classDef human fill:#176349,stroke:#176349,color:#ffffff
     classDef output fill:#fff6df,stroke:#c8ad6d,color:#172b29
-    classDef planned fill:#f5f4ee,stroke:#89948b,color:#46554c,stroke-dasharray:5 5
-    class B,C,D,F,G,I,M work
-    class A,E,H,R human
-    class P output
-    class N,S,T planned
+    class B,C,D,E,F,G,K,M work
+    class A,U,R,S,T,P human
+    class H,X output
