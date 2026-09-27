@@ -75,7 +75,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         with patch('app.agent.complete',side_effect=InvalidAction()) as provider:
             await server.agent.message(AgentTurn(text='Find RFPs',request_id='format-fail'))
             await server.agent.task
-        self.assertEqual(provider.call_count,2)
+        self.assertEqual(provider.call_count,3)
         snap=await server.agent.snapshot()
         self.assertEqual(snap['run']['status'],'error')
         self.assertEqual(snap['steps'],[])
@@ -87,6 +87,11 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         response.__enter__.return_value.read.side_effect=lambda _:json.dumps(result).encode()
         with patch('app.agent.urllib.request.urlopen',return_value=response):
             self.assertEqual(complete([{'role':'user','content':'Go'}])[0].tool,'company')
+            result['choices'][0]['message']['tool_calls'][0]['function']['arguments']={'tool':'company','arguments':{}}
+            self.assertEqual(complete([{'role':'user','content':'Go'}])[0].tool,'company')
+            for invalid in [{'tool':'ask','arguments':{}},{'tool':'finish','arguments':{'message':None}},{'tool':'shell','arguments':{}},{'tool':'company','arguments':{},'unexpected':'field'}]:
+                result['choices'][0]['message']['tool_calls'][0]['function']['arguments']=json.dumps(invalid)
+                with self.assertRaises(InvalidAction):complete([{'role':'user','content':'Go'}])
             result['model']='unexpected-model'
             with self.assertRaisesRegex(RuntimeError,'different model'):complete([{'role':'user','content':'Go'}])
 
@@ -245,3 +250,25 @@ class ActionCompletionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result['status'],'Queued')
         with self.assertRaises(ValueError):
             await server.agent.execute(snap['run']['id'],'queue_followup',{'field':'insurance.coverage','title':'Different task','quote':'es'})
+
+    async def test_invalid_completion_review_recovers_without_repeating_tools(self):
+        question=AgentAction(tool='ask',arguments={'message':'What is your company website? I’ll use it to find suitable RFPs.'})
+        results=[(AgentAction(tool='company'),'test-model',{}),(question,'test-model',{}),InvalidAction({'prompt_tokens':12,'completion_tokens':3}), (question,'test-model',{'prompt_tokens':15,'completion_tokens':5})]
+        with patch('app.agent.complete',side_effect=results) as provider:
+            await server.agent.message(AgentTurn(text='Find RFPs that match my business and help me apply.',request_id='review-retry'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'waiting')
+        self.assertEqual([s['tool'] for s in snap['steps']],['company','ask'])
+        self.assertEqual(provider.call_count,4)
+        self.assertIn('company website',snap['messages'][-1]['text'])
+        with server.db() as c:self.assertEqual(c.execute('SELECT COUNT(*) FROM agent_usage WHERE actual IS NOT NULL').fetchone()[0],2)
+
+    async def test_review_repeated_invalid_output_stays_bounded(self):
+        question=AgentAction(tool='ask',arguments={'message':'What is your website?'})
+        with patch('app.agent.complete',side_effect=[(question,'test-model',{}),InvalidAction(),InvalidAction(),InvalidAction()]) as provider,patch.object(server.agent,'execute') as execute:
+            await server.agent.message(AgentTurn(text='Find matches.',request_id='review-exhausted'))
+            await server.agent.task
+        self.assertEqual(provider.call_count,4)
+        execute.assert_not_awaited()
+        self.assertEqual((await server.agent.snapshot())['run']['status'],'error')
