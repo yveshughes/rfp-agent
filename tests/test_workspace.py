@@ -31,6 +31,40 @@ class WorkspaceTests(unittest.IsolatedAsyncioTestCase):
                 with server.db() as c:c.execute('DELETE FROM watches WHERE source_id=?',(900002,))
 
     @unittest.skipUnless(server.SOURCE_FILE.exists(), "Private source dataset required")
+    async def test_source_tour_runs_when_requested_and_idle_then_rests(self):
+        import time
+        from unittest.mock import AsyncMock
+        sources=[{'id':901,'name':'Alpha city','state_code':'CA','procurement_url':'https://alpha.example/bids'},{'id':902,'name':'Beta city','state_code':'CA','official_url':'https://beta.example/'}]
+        with server.db() as c:
+            c.execute('DELETE FROM watches');c.executemany('INSERT INTO watches VALUES (?,?)',[(901,1),(902,1)])
+        tour=AsyncMock(return_value=True)
+        with patch.object(server,'SOURCES',sources),patch.object(server.b,'tour',tour):
+            server.b.busy=False;server.b.controller='billy';server.b.pending=None
+            server.tour_state.update({'requested':0.0,'cycle_done':time.time(),'cursor':0})
+            self.assertIsNone(await server.tour_step())          # rested: recent cycle, no request
+            await server.request_tour()
+            self.assertEqual((await server.tour_step())['id'],901)
+            tour.assert_awaited_with('https://alpha.example/bids',901,'Alpha city')
+            self.assertEqual((await server.tour_step())['id'],902)   # cycle completes
+            self.assertIsNone(await server.tour_step())          # rests again until asked or timed out
+            server.b.busy=True
+            await server.request_tour()
+            self.assertIsNone(await server.tour_step())          # never competes with a busy browser
+            server.b.busy=False
+        with server.db() as c:c.execute('DELETE FROM watches')
+
+    async def test_yield_tour_stops_a_running_tour_and_waits_for_the_browser(self):
+        b=server.b
+        b.touring=True;b.busy=True;b.stop_tour=False
+        async def finish():
+            while not b.stop_tour:await asyncio.sleep(0.01)
+            b.busy=False;b.touring=False
+        task=asyncio.create_task(finish())
+        await b.yield_tour(seconds=2)
+        await task
+        self.assertFalse(b.busy)
+        b.stop_tour=False
+
     async def test_directory_and_jurisdiction(self):
         all_rows = await server.sources(q='',state='',offset=0,limit=100)
         self.assertEqual(all_rows['total'],6222)

@@ -53,6 +53,7 @@ class CompanyWebsite:
             raise ValueError('Use the saved company website, a URL supplied by the user, or a same-site link returned by this tool.')
         await self.public_url(target)
         b = self.browser
+        if getattr(b, 'touring', False): await b.yield_tour()
         if b.busy or b.controller != 'billy' or b.pending:
             raise HTTPException(409, 'Hand the browser back to Billy or finish its current task first.')
         b.busy = True

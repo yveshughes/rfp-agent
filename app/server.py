@@ -115,6 +115,9 @@ class Browser:
         self.verified_hosts = {}
         self.error = None
         self.action_at = 0
+        self.touring = False
+        self.stop_tour = False
+        self.tour_failures = {}
 
     async def start(self):
         if self.page and not self.page.is_closed(): return
@@ -178,6 +181,60 @@ class Browser:
         except Exception:
             await route.abort()
 
+    async def yield_tour(self, seconds=12):
+        """Ask a running source tour to stop and wait for the browser to free up."""
+        if not self.touring: return
+        self.stop_tour = True
+        deadline = time.time() + seconds
+        while self.busy and time.time() < deadline: await asyncio.sleep(0.2)
+
+    async def tour(self, url, source_id, name):
+        """Review a watched agency's listing page in the real browser, scrolling slowly so the work
+        is visible in Activity. Reads and saves the page like research(); a portal that will not
+        load is noted quietly and skipped for an hour, never turned into an attention state."""
+        self.busy = True; self.touring = True; self.stop_tour = False; self.error = None
+        self.status = f'Reviewing {name} opportunities'
+        started = time.time()
+        event('working', f'Reviewing {name} listings', url)
+        try:
+            async with self.lock:
+                await self.start()
+                self.verified_hosts.clear()
+                response = await self.page.goto(url, wait_until='domcontentloaded', timeout=35000)
+                await self.page.wait_for_timeout(800)
+                await self.capture()
+                if response and response.status >= 400: raise RuntimeError(f'The portal returned HTTP {response.status}.')
+                height = await self.page.evaluate('document.documentElement.scrollHeight')
+                position = 0
+                for _ in range(12):
+                    if self.stop_tour: break
+                    await self.page.mouse.wheel(0, 450); position += 450
+                    await self.page.wait_for_timeout(900)
+                    await self.capture()
+                    if position >= height - 800: break
+                text = await self.page.locator('body').inner_text(timeout=8000)
+                title = await self.page.title()
+                links = await self.page.locator('a[href]').evaluate_all("els => els.map(a=>({title:a.innerText.trim(),url:a.href})).filter(a=>a.title && /^https?:/.test(a.url))")
+                unique = {}
+                for link in links:
+                    if any(word in (link['title']+' '+link['url']).lower() for word in ('rfp','proposal','solicitation','bid')):
+                        unique.setdefault(link['url'], {'title':link['title'][:200], 'url':link['url']})
+                save('research', {'url':self.page.url,'title':title,'text':text[:50000],'links':list(unique.values())[:30],'checked':time.time(),'seconds':round(time.time()-started,1),'source_id':source_id})
+                with db() as c: c.execute('INSERT OR REPLACE INTO checks VALUES (?,?,?,?)', (source_id, time.time(), self.page.url, title))
+                self.status = 'Ready for a source'
+                event('done', f'Reviewed {name} listings', f'{title} · {len(unique)} opportunity links · {round(time.time()-started,1)}s')
+                return True
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self.tour_failures[source_id] = time.time()
+            self.status = 'Ready for a source'
+            event('working', f'{name} did not load in Billy’s browser', str(exc)[:200] + ' Skipping it this round.')
+            await self.capture()
+            return False
+        finally:
+            self.busy = False; self.touring = False; self.stop_tour = False
+
     async def capture(self):
         if not self.page: return
         try: self.image = await self.page.screenshot(type='jpeg', quality=65, timeout=4000, animations='disabled')
@@ -237,10 +294,11 @@ async def document_work():
 @asynccontextmanager
 async def lifespan(app):
     watcher = asyncio.create_task(watch_opportunities())
+    tour = asyncio.create_task(tour_sources())
     yield
     await agent.close()
-    watcher.cancel()
-    await asyncio.gather(watcher, return_exceptions=True)
+    watcher.cancel(); tour.cancel()
+    await asyncio.gather(watcher, tour, return_exceptions=True)
     if b.task and not b.task.done():
         b.task.cancel()
         await asyncio.gather(b.task, return_exceptions=True)
@@ -314,6 +372,7 @@ class ResearchRequest(BaseModel):
 async def research(req: ResearchRequest):
     if b.busy: raise HTTPException(409, 'Billy is already reading a page.')
     if b.controller=='you': raise HTTPException(409, 'Hand the browser back to Billy first.')
+    await b.yield_tour()
     if req.source_id is not None:
         row = next((r for r in SOURCES if r['id']==req.source_id), None)
         if not row: raise HTTPException(404, 'Source not found')
@@ -559,6 +618,44 @@ rfp_research = RFPResearch(db, DATA, fetch_pdf, store_pdf, require_rfp, event)
 from app.response_review import register_response_review
 response_review = register_response_review(app, db, rfp_workspace, DATA)
 agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website,rfp_research=rfp_research,review=response_review)
+
+TOUR_CYCLE_SECONDS = 900
+tour_state = {'requested': 0.0, 'cycle_done': 0.0, 'cursor': 0}
+
+class TourRequest(BaseModel):
+    pass
+
+@app.post('/api/tour')
+async def request_tour(req: TourRequest = TourRequest()):
+    """The app asks for a fresh review of the watched listings; the scheduler runs it when idle."""
+    tour_state['requested'] = time.time()
+    with db() as c: count = c.execute('SELECT COUNT(*) FROM watches').fetchone()[0]
+    return {'watched': count, 'touring': b.touring}
+
+async def tour_step():
+    """One scheduling decision: review the next watched source in the browser if nothing else needs it.
+    A cycle runs when the app requested one, or every TOUR_CYCLE_SECONDS while idle. Returns the source toured."""
+    if b.busy or b.controller != 'billy' or b.pending: return None
+    if agent.task and not agent.task.done(): return None
+    now = time.time()
+    if now - tour_state['cycle_done'] < TOUR_CYCLE_SECONDS and tour_state['requested'] <= tour_state['cycle_done']: return None
+    with db() as c: watched = {r['source_id'] for r in c.execute('SELECT source_id FROM watches')}
+    candidates = [s for s in SOURCES if s['id'] in watched and now - b.tour_failures.get(s['id'], 0) > 3600]
+    if not candidates:
+        tour_state['cycle_done'] = now
+        return None
+    source = candidates[tour_state['cursor'] % len(candidates)]
+    tour_state['cursor'] += 1
+    await b.tour(source.get('procurement_url') or source.get('official_url'), source['id'], source['name'])
+    if tour_state['cursor'] % len(candidates) == 0: tour_state['cycle_done'] = time.time()
+    return source
+
+async def tour_sources():
+    while True:
+        await asyncio.sleep(3)
+        try: await tour_step()
+        except asyncio.CancelledError: raise
+        except Exception: logging.exception('Source tour failed')
 
 async def watch_opportunities():
     while True:

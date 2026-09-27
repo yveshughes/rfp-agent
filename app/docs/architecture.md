@@ -12,7 +12,7 @@ flowchart LR
   R --> DB[(Company SQLite)]
   R --> FILES[Originals / previews / review PDFs]
   R --> B[Playwright Chromium]
-  R --> W[Watched-source scheduler]
+  R --> W[Watched-source scheduler and browser source tour]
   W --> GET[Validated public HTTP reads]
   AG --> GET
   DIR --> CAT[(Shared catalog SQLite)]
