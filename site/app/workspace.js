@@ -142,7 +142,13 @@ document.addEventListener('click',e=>{if(!$('#state-filter').contains(e.target))
 document.addEventListener('focusin',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
 $('#start-california').onclick=()=>{selectedStates.clear();selectedStates.add('CA');updateStateFilter();offset=0;showView('sources');};
 $('#start-berkeley').onclick=()=>startResearch({source_id:5426},'Berkeley, California');
-$('#start-import').onclick=()=>companyProfile.documents();
+$('#start-import').onclick=()=>{
+  const input=$('#chat-input');if(input.disabled)return;
+  const prompt='Review my previous RFP response and use it to build my company profile for future proposals. Extract the company details, services, experience, team, and qualifications supported by the document.';
+  if(!input.value.includes(prompt))input.value=input.value.trim()?input.value.trim()+'\n\n'+prompt:prompt;
+  input.focus();input.setSelectionRange(input.value.length,input.value.length);
+  input.dispatchEvent(new Event('input',{bubbles:true}));
+};
 async function loadSources(){
   const request=++pendingSearch;
   try{const data=await api('/sources?'+new URLSearchParams({q:$('#source-search').value,state:[...selectedStates].sort().join(','),offset:String(offset),limit:'30',watched:String($('#watched-only').checked)}));if(request!==pendingSearch)return;sourceTotal=data.total;$('#watch-count').textContent=`${data.watch_count} / ${data.watch_limit} sources watched`;
