@@ -71,6 +71,17 @@ autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,o
 // Live voice: Gemini listens and speaks; ask_billy routes every workspace question through the agent.
 liveVoice=createLiveVoice({api,toast,agentChat,onState:value=>{voiceState=value;updateBillyMotion();},elements:{button:$('#call-billy'),bar:$('#voice-call'),status:$('#voice-call-status'),transcript:$('#voice-call-transcript'),hangup:$('#voice-hangup'),overlay:$('#voice-overlay'),wave:$('#voice-wave'),overlayStatus:$('#voice-overlay-status'),overlayHangup:$('#voice-overlay-hangup')}});
 window.billyVoice=liveVoice;
+// Settings: Billy's voice for this workspace. Saved server-side; the next call picks it up.
+async function loadVoiceSetting(){
+  const select=$('#voice-select'),note=$('#voice-setting-note');
+  try{
+    const cfg=await api('/voice/config');
+    select.innerHTML='<option value="">Server default</option>'+cfg.voices.map(v=>`<option value="${esc(v.name)}">${esc(v.name)} · ${esc(v.style)}</option>`).join('');
+    select.value=cfg.voice_source==='workspace'?cfg.voice:'';select.disabled=!cfg.ready;
+    note.textContent=cfg.ready?`Now: ${cfg.voice}${cfg.voice_source==='server'?' (server default)':cfg.voice_source==='default'?' (provider default)':''}. Talk to Billy to hear it.`:'Live voice is not connected on the server.';
+  }catch{note.textContent='Could not load voice settings.';}
+}
+$('#voice-select').onchange=async()=>{const select=$('#voice-select');select.disabled=true;try{await api('/voice/settings',{voice:select.value});toast(select.value?`Billy will use ${select.value} on the next call.`:'Billy will use the server default voice.');await liveVoice.configure();}catch(e){toast(e.message);}finally{await loadVoiceSetting();}};
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
@@ -97,6 +108,7 @@ function showView(name) {
   if(name==='sources')loadSources();
   if(name==='company'){renderDocuments();companyProfile.load();}
   if(name==='artifacts') renderArtifacts();
+  if(name==='settings') loadVoiceSetting();
 }
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
 $('#profile-shortcut').onclick=()=>{$('#workspace-menu').hidden=true;$('#workspace-switcher').setAttribute('aria-expanded','false');showView('company');};

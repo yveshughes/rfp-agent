@@ -11,6 +11,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
+from pydantic import BaseModel, Field
 
 TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens'
 # Ephemeral tokens open sessions only on the constrained endpoint, passed as access_token.
@@ -41,20 +42,41 @@ def live_model():
     return os.environ.get('BILLY_GEMINI_LIVE_MODEL') or DEFAULT_MODEL
 
 
-def live_voice():
-    # One of Gemini's prebuilt voice names; empty means the provider default.
+# Gemini's prebuilt voices with their published style words.
+VOICES = [('Zephyr','Bright'),('Puck','Upbeat'),('Charon','Informative'),('Kore','Firm'),('Fenrir','Excitable'),('Leda','Youthful'),('Orus','Firm'),('Aoede','Breezy'),('Callirrhoe','Easy-going'),('Autonoe','Bright'),('Enceladus','Breathy'),('Iapetus','Clear'),('Umbriel','Easy-going'),('Algieba','Smooth'),('Despina','Smooth'),('Erinome','Clear'),('Algenib','Gravelly'),('Rasalgethi','Informative'),('Laomedeia','Upbeat'),('Achernar','Soft'),('Alnilam','Firm'),('Schedar','Even'),('Gacrux','Mature'),('Pulcherrima','Forward'),('Achird','Friendly'),('Zubenelgenubi','Casual'),('Vindemiatrix','Gentle'),('Sadachbia','Lively'),('Sadaltager','Knowledgeable'),('Sulafat','Warm')]
+VOICE_NAMES = {name for name, _ in VOICES}
+NO_SETTING = lambda key, default=None: default   # each workspace passes its own reader; nothing is module-global
+
+
+def live_voice(read=NO_SETTING):
+    """The workspace's chosen voice, else the server default, else the provider default."""
+    chosen = read('voice') or ''
+    if chosen in VOICE_NAMES:
+        return chosen
     return (os.environ.get('BILLY_GEMINI_VOICE') or '').strip()
 
 
-def voice_config():
-    return {'provider': 'Gemini Live', 'model': live_model(), 'voice': live_voice() or 'default', 'ready': bool(gemini_key())}
+def voice_source(read=NO_SETTING):
+    if (read('voice') or '') in VOICE_NAMES:
+        return 'workspace'
+    return 'server' if (os.environ.get('BILLY_GEMINI_VOICE') or '').strip() else 'default'
 
 
-def setup_config():
-    """The Live session setup the browser sends. Kept server-side as the single source of truth."""
+class VoiceSettings(BaseModel):
+    voice: str = Field(default='', max_length=40)
+
+
+def voice_config(read=NO_SETTING):
+    return {'provider': 'Gemini Live', 'model': live_model(), 'voice': live_voice(read) or 'default', 'voice_source': voice_source(read),
+            'voices': [{'name': n, 'style': st} for n, st in VOICES], 'ready': bool(gemini_key())}
+
+
+def setup_config(read=NO_SETTING):
+    """The Live session setup locked into each token. Kept server-side as the single source of truth."""
+    voice = live_voice(read)
     return {'model': 'models/' + live_model(),
             'generationConfig': {'responseModalities': ['AUDIO'],
-                                 **({'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': live_voice()}}}} if live_voice() else {})},
+                                 **({'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}} if voice else {})},
             'systemInstruction': {'parts': [{'text': VOICE_INSTRUCTION}]},
             'tools': [{'functionDeclarations': FUNCTIONS}],
             'inputAudioTranscription': {}, 'outputAudioTranscription': {},
@@ -68,10 +90,22 @@ def request_token(body):
         return json.loads(response.read(64 * 1024))
 
 
-def register_voice(app, event):
+def register_voice(app, event, read=NO_SETTING, save=None):
     @app.get('/api/voice/config')
     async def config():
-        return voice_config()
+        return voice_config(read)
+
+    @app.post('/api/voice/settings')
+    async def settings(req: VoiceSettings):
+        """Choose Billy's voice for this workspace. Empty restores the server default. Applies to the next call."""
+        name = req.voice.strip()
+        if name and name not in VOICE_NAMES:
+            raise HTTPException(400, 'Choose one of the listed voices.')
+        if not save:
+            raise HTTPException(503, 'Voice settings are not available in this workspace.')
+        save('voice', name)
+        event('voice', 'Billy’s voice changed', name or 'Server default')
+        return voice_config(read)
 
     @app.post('/api/voice/token')
     async def token():
@@ -84,7 +118,7 @@ def register_voice(app, event):
         # REST spells the lock as bidiGenerateContentSetup (the SDK calls it live_connect_constraints).
         # The whole session setup is locked into the token: model, audio output, Billy's voice
         # instruction and the two functions. A client cannot widen what the voice may do.
-        setup = setup_config()
+        setup = setup_config(read)
         body = {'uses': 1, 'expireTime': stamp(expires), 'newSessionExpireTime': stamp(new_session), 'bidiGenerateContentSetup': setup}
         try:
             import asyncio
@@ -95,11 +129,11 @@ def register_voice(app, event):
         name = result.get('name') if isinstance(result, dict) else None
         if not isinstance(name, str) or not name.strip():
             raise HTTPException(502, 'Gemini returned no voice session token.')
-        event('voice', 'Voice session opened', f'Gemini Live · {live_model()} · token valid until {stamp(expires)}')
+        event('voice', 'Voice session opened', f'Gemini Live · {live_model()} · {live_voice(read) or "default voice"} · token valid until {stamp(expires)}')
         return {'token': name, 'model': live_model(), 'expires_at': stamp(expires), 'new_session_expires_at': stamp(new_session),
                 'setup': setup,
                 'socket': {'url': SOCKET_URL, 'token_parameter': 'access_token'},
                 'audio': {'input': {'mime_type': 'audio/pcm;rate=16000', 'rate': 16000}, 'output': {'rate': 24000}},
                 'note': 'The token opens one Live session. Function calls run in the browser against this workspace only.'}
 
-    return config, token
+    return config, token, settings

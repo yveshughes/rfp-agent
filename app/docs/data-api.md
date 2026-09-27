@@ -62,7 +62,7 @@ All paths below start at the selected workspace API unless marked global.
 | Originals | `POST /documents` (multipart PDF/range), `POST /rfps/{id}/documents/download`, `GET /documents/{id}`, `/documents/{id}/file`, `/documents/{id}/preview` |
 | Company | `GET /company`, `POST /company/facts/{field}`, `/company/evidence`, `/company/tasks/{id}`, `/company/attachments` (multipart) |
 | Conversation | `GET /discussion/config`, `/discussion/agenda`, `POST /discussion` (records an opening question only), `/discussion/transcribe` |
-| Live voice | `GET /voice/config`, `POST /voice/token` (mints a single-use Gemini Live token locked to the configured model; returns the session setup and function declarations the browser must use) |
+| Live voice | `GET /voice/config` (readiness, current voice and its source, the 30 prebuilt voices), `POST /voice/settings` (choose this workspace's voice; empty restores the server default; applies to the next call), `POST /voice/token` (mints a single-use Gemini Live token with the full session setup locked in: model, audio, voice, Billy's instruction and functions) |
 | Agent controls | `POST /agent/message`, `/agent/pause`, `/agent/resume` |
 | Review | `GET /response-pdfs`, `/response-pdfs/{id}`, `/rfps/{id}/review` |
 

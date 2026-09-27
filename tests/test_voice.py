@@ -18,10 +18,28 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(self.env.stop)
 
     async def test_config_and_token_require_a_server_key(self):
-        self.assertEqual(await server.voice_config(),{'provider':'Gemini Live','model':'gemini-3.8-live','voice':'default','ready':False})
+        cfg=await server.voice_config()
+        self.assertEqual({k:cfg[k] for k in ('provider','model','voice','voice_source','ready')},{'provider':'Gemini Live','model':'gemini-3.8-live','voice':'default','voice_source':'default','ready':False})
+        self.assertEqual(len(cfg['voices']),30)
         self.assertNotIn('speechConfig',voice.setup_config()['generationConfig'])
         with patch.dict(os.environ,{'BILLY_GEMINI_VOICE':'Sulafat'}):
             self.assertEqual(voice.setup_config()['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Sulafat')
+
+    async def test_workspace_voice_setting_overrides_the_server_default_per_workspace(self):
+        from app.voice import VoiceSettings
+        server.save('voice','')
+        with patch.dict(os.environ,{'BILLY_GEMINI_VOICE':'Sulafat'}):
+            self.assertEqual((await server.voice_config())['voice_source'],'server')
+            with self.assertRaises(server.HTTPException):await server.voice_settings(VoiceSettings(voice='Robot'))
+            result=await server.voice_settings(VoiceSettings(voice='Achird'))
+            self.assertEqual((result['voice'],result['voice_source']),('Achird','workspace'))
+            self.assertEqual(voice.setup_config(server.read)['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Achird')
+            # The choice lives in this workspace's state table, never in the shared module.
+            self.assertEqual(voice.setup_config()['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Sulafat')
+            result=await server.voice_settings(VoiceSettings(voice=''))
+            self.assertEqual((result['voice'],result['voice_source']),('Sulafat','server'))
+        with server.db() as c:
+            self.assertEqual(c.execute("SELECT title FROM events ORDER BY id DESC LIMIT 1").fetchone()[0],'Billy’s voice changed')
         with self.assertRaises(server.HTTPException) as e:await server.voice_token()
         self.assertEqual(e.exception.status_code,503)
 
