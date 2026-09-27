@@ -59,7 +59,7 @@ All paths below start at the selected workspace API unless marked global.
 | Shared imports (administrative) | `GET/POST /opportunity-imports`, `POST /opportunity-imports/{id}/visibility` |
 | Browser | `GET /browser/frame`, `POST /browser/control`, `/browser/action`, `/browser/approval` |
 | RFPs | `GET/POST /rfps`, `POST /rfps/{id}`, `GET /rfps/{id}/workspace`, `POST /rfps/{id}/sections/{section}`, `POST /rfps/{id}/discussion/{section}` |
-| Originals | `POST /documents` (multipart PDF/range), `POST /rfps/{id}/documents/download`, `GET /documents/{id}`, `/documents/{id}/pdf`, `/documents/{id}/file`, `/documents/{id}/preview` |
+| Originals | `POST /documents` (multipart PDF/range), `POST /rfps/{id}/documents/download`, `GET /documents/{id}`, `/documents/{id}/file`, `/documents/{id}/preview` |
 | Company | `GET /company`, `POST /company/chat`, `/company/evidence`, `/company/tasks/{id}`, `/company/attachments` (multipart) |
 | Conversation | `GET /discussion/config`, `/discussion/agenda`, `POST /discussion`, `/discussion/transcribe` |
 | Agent controls | `POST /agent/message`, `/agent/pause`, `/agent/resume` |

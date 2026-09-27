@@ -121,9 +121,9 @@ class WorkspaceTests(unittest.IsolatedAsyncioTestCase):
         full=await server.store_pdf(raw,'original.pdf',1,0,r['id'])
         self.assertNotEqual(full['id'],saved['id'])
         self.assertEqual(full['pages'],2)
-        download=await server.document_pdf(doc['id'],True)
+        download=await server.original_document(doc['id'],True)
         self.assertIn('attachment',download.headers['content-disposition'])
-        inline=await server.document_pdf(doc['id'],False)
+        inline=await server.original_document(doc['id'],False)
         self.assertIn('inline',inline.headers['content-disposition'])
 
     async def test_bad_rfp_or_document_is_not_saved(self):

@@ -47,10 +47,10 @@ class CompanyWorkspacesTests(unittest.IsolatedAsyncioTestCase):
         doc=await ra.store_pdf(buf.getvalue(),'A-only.pdf',rfp_id=rfp['id'])
         self.assertEqual(len((await get(a,'/rfps'))['rows']),1)
         self.assertEqual((await get(b,'/rfps'))['rows'],[])
-        for path in ['/documents/'+doc['id'], '/documents/'+doc['id']+'/pdf', '/rfps/'+rfp['id']+'/workspace']:
+        for path in ['/documents/'+doc['id'], '/documents/'+doc['id']+'/file', '/rfps/'+rfp['id']+'/workspace']:
             response=await self.client.get('/w/'+b+'/api'+path)
             self.assertEqual(response.status_code,404,response.text)
-        pdf=await self.client.get('/w/'+a+'/api/documents/'+doc['id']+'/pdf')
+        pdf=await self.client.get('/w/'+a+'/api/documents/'+doc['id']+'/file')
         self.assertTrue(pdf.content.startswith(b'%PDF'))
         self.assertEqual(pdf.headers['cache-control'],'no-store')
         ready=asyncio.Event()

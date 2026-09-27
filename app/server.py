@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from urllib.parse import urlparse, urljoin, unquote
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from pypdf import PdfReader
@@ -521,15 +521,6 @@ async def get_document(doc_id: str):
     with db() as c: row=c.execute('SELECT * FROM documents WHERE id=?',(doc_id,)).fetchone()
     if not row: raise HTTPException(404,'Document not found')
     result=dict(row); result['pages']=json.loads(result['pages']);return result
-
-@app.get('/api/documents/{doc_id}/pdf')
-async def document_pdf(doc_id: str, download: bool=False):
-    if len(doc_id)!=32 or any(ch not in '0123456789abcdef' for ch in doc_id): raise HTTPException(404)
-    path=DATA/f'{doc_id}.pdf'
-    if not path.exists(): raise HTTPException(404)
-    with db() as c: row=c.execute('SELECT name FROM documents WHERE id=?',(doc_id,)).fetchone()
-    if not row: raise HTTPException(404)
-    return FileResponse(path, media_type='application/pdf', filename=row['name'], content_disposition_type='attachment' if download else 'inline')
 
 from app.document_previews import register_document_previews
 document_preview = register_document_previews(app, db, DATA)
