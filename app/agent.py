@@ -35,7 +35,7 @@ class AgentAction(BaseModel):
 
 TOOLS = {
     'company': 'Read saved company facts and valid field IDs.',
-    'opportunities': 'List all opportunities from watched sources with preliminary scores. Assess fit yourself using evidence.',
+    'opportunities': 'Search shared catalog and watched-source opportunities ranked for this company. Arguments: query (optional text), offset (default 0), limit (default 15, max 25), availability (actionable default, all, open, unknown, closed). Actionable excludes imported records classified closed. Follow next_offset while has_more; inspect_rfp reads full evidence. Scores are preliminary keyword overlap, not verified fit.',
     'inspect_rfp': 'Arguments: rfp_id. Read original RFP document metadata and existing response sections. Use read_document to read the full extracted RFP pages before analysis. Listing scores are not compliance checks.',
     'pursue': 'Arguments: rfp_id, reason. Select this RFP for the current job and add it to My RFPs. Only when the user asked to apply/prepare/pursue.',
     'open_source': 'Arguments: source_id from the opportunity sources. Open and read that source in Billy’s real VM browser.',
@@ -255,7 +255,30 @@ class BillyAgent:
                 if not existing:c.execute('INSERT INTO company_tasks VALUES (?,?,?,?,?,?)',(task_id,field,'research',title,'Queued',time.time()))
             if not existing:self.event('profile','Company follow-up queued',title)
             return {'id':task_id,'title':title,'status':'Queued','executed':False}
-        if tool=='opportunities':return await self.feed()
+        if tool=='opportunities':
+            feed=await self.feed();query=str(a.get('query','')).lower().strip()
+            offset=max(0,int(a.get('offset',0)));limit=max(1,min(25,int(a.get('limit',15))))
+            availability=a.get('availability','actionable')
+            if availability not in ('actionable','all','open','unknown','closed'):raise ValueError('Unknown availability filter.')
+            matches=[]
+            for row in feed['rows']:
+                imported=row.get('imported') or {};status=imported.get('status','unknown')
+                if availability=='actionable' and status=='closed':continue
+                if availability not in ('actionable','all') and status!=availability:continue
+                if query and query not in ' '.join([row['title'],row['agency'],imported.get('description','')]).lower():continue
+                matches.append(row)
+            rows=[]
+            for row in matches[offset:offset+limit]:
+                imported=row.get('imported') or {}
+                rows.append({**{k:row.get(k) for k in ('id','title','agency','url','deadline','pursued','status')},
+                    'fit':{k:row['fit'].get(k) for k in ('score','label','matches')},
+                    'source_ids':[s['source_id'] for s in row.get('sources',[])],
+                    'availability':imported.get('status','unknown'),'unverified':bool(imported) or not row.get('reviewed'),
+                    'description_excerpt':imported.get('description','')[:1000],
+                    'description_quality':imported.get('description_quality','source_review')})
+            more=offset+len(rows)<len(matches)
+            return {'rows':rows,'total':len(matches),'offset':offset,'has_more':more,'next_offset':offset+len(rows) if more else None,
+                'availability_filter':availability,'method':feed.get('method',''),'instruction':'Use inspect_rfp for complete saved details. Use query or next_offset to inspect other candidates.'}
         if tool=='inspect_rfp':
             result=await self.workspace(a['rfp_id'])
             with self.db() as c:
@@ -269,6 +292,11 @@ class BillyAgent:
             with self.db() as c:
                 detail=c.execute('SELECT body,error FROM opportunity_reviews WHERE rfp_id=?',(a['rfp_id'],)).fetchone()
             result['listing_detail']={'text':(detail['body'] or '')[:16000],'truncated':len(detail['body'] or '')>16000,'error':detail['error']} if detail else None
+            catalog_row=next((r for r in (await self.feed())['rows'] if r['id']==a['rfp_id']),None)
+            imported=catalog_row.get('imported') if catalog_row else None
+            if imported:
+                result['catalog_evidence']={k:imported.get(k) for k in ('title','description','url','listing_url','status','description_quality','quality_notes','checked_at')}
+                result['catalog_evidence']['unverified']=True
             result['documents']=docs;result['saved_analysis']=json.loads(analysis[0]) if analysis else []
             return result
         if tool=='pursue':

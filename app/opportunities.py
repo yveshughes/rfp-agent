@@ -112,7 +112,7 @@ def rank(title, text, facts, reviewed):
     return dict(score=score,label='Strong overlap' if score>=65 else 'Some overlap' if score>=30 else 'Low overlap',matches=matches,evidence=citations,unknowns=unknowns)
 
 
-def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, event):
+def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, event, sync_catalog=None):
     with db() as c:
         c.executescript('''
         CREATE TABLE IF NOT EXISTS opportunity_sources(rfp_id TEXT,source_id INTEGER,listing_url TEXT,last_seen REAL,PRIMARY KEY(rfp_id,source_id));
@@ -235,21 +235,29 @@ def register_opportunities(app, db, sources, browser, fetch_public, store_pdf, e
 
     @app.get('/api/opportunities')
     async def feed():
+        imports,batches=sync_catalog() if sync_catalog else ({},[])
         with db() as c:
             rows=[dict(r) for r in c.execute('''SELECT DISTINCT r.*,v.body,v.reviewed,v.error,
                 (SELECT COUNT(*) FROM documents WHERE rfp_id=r.id) AS documents,
                 COALESCE(d.pursued,1) AS pursued
-                FROM rfps r JOIN opportunity_sources s ON s.rfp_id=r.id JOIN watches w ON w.source_id=s.source_id
-                LEFT JOIN opportunity_reviews v ON v.rfp_id=r.id LEFT JOIN discovered_rfps d ON d.rfp_id=r.id''')]
+                FROM rfps r LEFT JOIN opportunity_reviews v ON v.rfp_id=r.id
+                LEFT JOIN discovered_rfps d ON d.rfp_id=r.id''')]
+            watched={r[0] for r in c.execute('SELECT s.rfp_id FROM opportunity_sources s JOIN watches w ON w.source_id=s.source_id')}
             facts={r['field']:dict(r) for r in c.execute('SELECT * FROM company_facts')}
             scans={r['source_id']:dict(r) for r in c.execute('SELECT * FROM source_scans')}
             watching={r[0] for r in c.execute('SELECT source_id FROM watches')}
             associations=[dict(r) for r in c.execute('SELECT * FROM opportunity_sources')]
+        rows=[r for r in rows if (r['id'] in watched or imports.get(r['id'],{}).get('active'))
+              and not (r['id'] in imports and not imports[r['id']]['active'] and imports[r['id']]['created_by_catalog'])]
         for row in rows:
-            row['fit']=rank(row['title'],row.pop('body') or '',facts,row['reviewed'])
+            imported=imports.get(row['id'])
+            if imported:row['imported']=imported
+            row['fit']=rank(row['title'],row.pop('body') or (imported['description'] if imported else ''),facts,row['reviewed'] or (imported and imported['description_quality'] in ('listing_excerpt','listing_description','detail_page_excerpt')))
             row['sources']=[s for s in associations if s['rfp_id']==row['id'] and s['source_id'] in watching]
+            if imported and not row['sources']:
+                row['sources']=[{'source_id':s['id'],'listing_url':imported['listing_url'] or s.get('procurement_url') or s.get('official_url')} for s in sources if s['id'] in imported['source_ids']]
         rows.sort(key=lambda r:-(r['fit']['score'] if r['fit']['score'] is not None else -1))
-        return {'rows':rows,'scanning':bool(task and not task.done()),'sources':[dict(id=s['id'],name=s['name'],**{k:v for k,v in scans.get(s['id'],{}).items() if k!='source_id'}) for s in sources if s['id'] in watching], 'method':'Preliminary keyword fit against company capabilities. Not a compliance check or win probability.'}
+        return {'rows':rows,'imports':batches,'scanning':bool(task and not task.done()),'sources':[dict(id=s['id'],name=s['name'],**{k:v for k,v in scans.get(s['id'],{}).items() if k!='source_id'}) for s in sources if s['id'] in watching], 'method':'Preliminary keyword fit against company capabilities. Not a compliance check or win probability.'}
 
     @app.post('/api/opportunities/{rfp_id}/pursue')
     async def pursue(rfp_id:str):

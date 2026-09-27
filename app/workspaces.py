@@ -91,6 +91,7 @@ class WorkspaceDirectory:
             module._workspace_data = self.default.DATA / 'companies' / workspace_id
             module._workspace_sources = self.default.SOURCES
             module._workspace_usage_db = self.default.db
+            module._workspace_catalog = self.default.CATALOG_DB
             sys.modules[module_name] = module
             try:
                 spec.loader.exec_module(module)

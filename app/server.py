@@ -32,6 +32,12 @@ SOURCE_FILE = Path(os.environ.get('BILLY_SOURCES', ROOT / 'rfpsonar-found-rfp-so
 SOURCES = globals().get('_workspace_sources')
 if SOURCES is None: SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE.exists() else []
 DB = DATA / 'workspace.sqlite3'
+CATALOG_DB = Path(globals().get('_workspace_catalog') or DATA / 'catalog.sqlite3')
+
+def catalog_db():
+    c=sqlite3.connect(CATALOG_DB)
+    c.row_factory=sqlite3.Row
+    return c
 WATCH_LIMIT = int(os.environ.get('BILLY_WATCH_LIMIT', '10'))
 ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
 ALLOWED_ORIGINS = set(os.environ.get('BILLY_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081').split(','))
@@ -526,8 +532,11 @@ rfp_workspace, save_response_section, add_response_note = register_rfp_workspace
 from app.discussion import register_discussion
 discuss, discussion_config, transcribe = register_discussion(app, db, event, company_profile, company_chat, require_rfp)
 
+from app.opportunity_imports import register_imports
+import_batches, import_opportunities, import_visibility, sync_catalog = register_imports(app, db, catalog_db)
+
 from app.opportunities import register_opportunities
-opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_source = register_opportunities(app, db, SOURCES, b, fetch_pdf, store_pdf, event)
+opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_source = register_opportunities(app, db, SOURCES, b, fetch_pdf, store_pdf, event, sync_catalog)
 
 from app.agent import BillyAgent
 from app.response_pdf import register_response_pdf
