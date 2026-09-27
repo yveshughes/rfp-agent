@@ -34,6 +34,19 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         duplicate=await server.agent.message(AgentTurn(text='Find RFPs and help apply',request_id='one'))
         self.assertEqual(len(duplicate['messages']),2)
 
+    async def test_verbose_reply_is_rewritten_without_repeating_work(self):
+        long=' '.join(['Detail']*100)
+        actions=iter([AgentAction(tool='company'),AgentAction(tool='finish',arguments={'message':long}),AgentAction(tool='finish',arguments={'message':'Saved the company details with source links. Insurance still needs confirmation.'})])
+        with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{'prompt_tokens':10,'completion_tokens':5})) as provider:
+            await server.agent.message(AgentTurn(text='Read my website',request_id='concise'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'complete')
+        self.assertEqual(provider.call_count,3)
+        self.assertEqual([s['tool'] for s in snap['steps']],['company','finish'])
+        self.assertLessEqual(len(snap['messages'][-1]['text'].split()),60)
+        self.assertIn('Insurance still needs confirmation',snap['messages'][-1]['text'])
+
     async def test_provider_failure_never_becomes_success(self):
         with patch('app.agent.complete',side_effect=RuntimeError('Model unavailable')):
             await server.agent.message(AgentTurn(text='Find RFPs',request_id='fail'))

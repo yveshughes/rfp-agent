@@ -28,7 +28,7 @@ export function resolveAgentActivity(snapshot) {
   const step=snapshot.steps?.at(-1),user=snapshot.messages?.filter(m=>m.role==='user').at(-1);
   if(!step || (user && step.created<user.created))return null;
   if(['read_document','inspect_rfp'].includes(step.tool))return 'reading';
-  if(['open_source','opportunities'].includes(step.tool))return 'researching';
+  if(['open_source','read_company_website','opportunities'].includes(step.tool))return 'researching';
   return null;
 }
 

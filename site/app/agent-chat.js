@@ -1,4 +1,4 @@
-import {resolveAgentActivity} from './billy-motion.js?v=auto-panel-1';
+import {resolveAgentActivity} from './billy-motion.js?v=company-web-1';
 
 export function createAgentChat({api,esc,toast,openRFP,onState,onSaved,importDocument,companyChatActive,resourceURL}) {
   const $=s=>document.querySelector(s);

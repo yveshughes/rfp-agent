@@ -167,7 +167,7 @@ class Browser:
         try: self.image = await self.page.screenshot(type='jpeg', quality=65, timeout=4000, animations='disabled')
         except Exception: pass
 
-    async def research(self, url, source_id=None):
+    async def research(self, url, source_id=None, company=False):
         self.busy = True
         self.error = None
         self.status = 'Opening the source'
@@ -187,14 +187,15 @@ class Browser:
                 links = await self.page.locator('a[href]').evaluate_all("els => els.map(a=>({title:a.innerText.trim(),url:a.href})).filter(a=>a.title && /^https?:/.test(a.url))")
                 unique = {}
                 for link in links:
-                    if any(word in (link['title']+' '+link['url']).lower() for word in ('rfp','proposal','environmental','solicitation','bid')):
+                    if company or any(word in (link['title']+' '+link['url']).lower() for word in ('rfp','proposal','environmental','solicitation','bid')):
                         unique.setdefault(link['url'], {'title':link['title'][:200], 'url':link['url']})
-                result = {'url':self.page.url,'title':title,'text':text[:50000],'links':list(unique.values())[:30],'checked':time.time(),'seconds':round(time.time()-started,1),'source_id':source_id}
+                result = {'url':self.page.url,'title':title,'text':text[:50000],'links':list(unique.values())[:80 if company else 30],'checked':time.time(),'seconds':round(time.time()-started,1),'source_id':source_id}
                 save('research', result)
                 if source_id:
                     with db() as c: c.execute('INSERT OR REPLACE INTO checks VALUES (?,?,?,?)', (source_id,time.time(),self.page.url,title))
                 self.status = 'Ready for your next decision'
                 event('done', 'Page read and saved', f'{title} · {len(text):,} characters · {result["seconds"]}s')
+                return result
         except Exception as exc:
             logging.exception('Research failed')
             self.error = str(exc)[:450]
@@ -531,7 +532,9 @@ opportunity_feed, refresh_opportunities, persist_opportunity, scan_opportunity_s
 from app.agent import BillyAgent
 from app.response_pdf import register_response_pdf
 export_response_pdf = register_response_pdf(app, db, DATA, rfp_workspace, event)
-agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'))
+from app.company_web import CompanyWebsite
+company_website = CompanyWebsite(db, b, public_url, event)
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website)
 
 async def watch_opportunities():
     while True:

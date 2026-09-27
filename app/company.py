@@ -62,6 +62,11 @@ def register_company(app, db, event):
         CREATE TABLE IF NOT EXISTS company_tasks(id TEXT PRIMARY KEY,field TEXT,kind TEXT,title TEXT,status TEXT,created REAL);
         CREATE UNIQUE INDEX IF NOT EXISTS company_open_task ON company_tasks(field,kind) WHERE status='Queued';
         CREATE TABLE IF NOT EXISTS company_dialogue(field TEXT PRIMARY KEY,stage TEXT);
+        CREATE TABLE IF NOT EXISTS company_web_pages(id TEXT PRIMARY KEY,run_id TEXT,url TEXT,title TEXT,body TEXT,checked REAL,links TEXT);
+        CREATE TABLE IF NOT EXISTS company_web_evidence(field TEXT PRIMARY KEY,page_id TEXT,quote TEXT);
+        CREATE TRIGGER IF NOT EXISTS clear_company_web_insert AFTER INSERT ON company_facts BEGIN DELETE FROM company_web_evidence WHERE field=NEW.field; END;
+        CREATE TRIGGER IF NOT EXISTS clear_company_web_update AFTER UPDATE ON company_facts BEGIN DELETE FROM company_web_evidence WHERE field=NEW.field; END;
+        CREATE TRIGGER IF NOT EXISTS clear_company_web_delete AFTER DELETE ON company_facts BEGIN DELETE FROM company_web_evidence WHERE field=OLD.field; END;
         ''')
 
     def check_field(field):
@@ -81,6 +86,8 @@ def register_company(app, db, event):
     async def company_profile():
         with db() as c:
             facts={r['field']:dict(r) for r in c.execute('SELECT * FROM company_facts')}
+            for source in c.execute('SELECT e.field,e.quote AS source_quote,p.url AS source_url,p.title AS source_title,p.checked AS source_checked FROM company_web_evidence e JOIN company_web_pages p ON p.id=e.page_id'):
+                if source['field'] in facts: facts[source['field']].update(dict(source))
             messages=[dict(r) for r in c.execute('SELECT * FROM company_messages ORDER BY id')]
             tasks=[dict(r) for r in c.execute('SELECT * FROM company_tasks ORDER BY created DESC')]
         return {'sections':SCHEMA,'facts':facts,'messages':messages,'tasks':tasks}
