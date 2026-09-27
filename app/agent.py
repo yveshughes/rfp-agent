@@ -132,7 +132,7 @@ class BillyAgent:
             row=c.execute('SELECT * FROM agent_runs ORDER BY created DESC LIMIT 1').fetchone()
             if not row:return {'config':model_config(),'run':None,'messages':[],'steps':[]}
             run=dict(row)
-            messages=[dict(r) for r in c.execute('SELECT id,role,text,created FROM agent_messages WHERE run_id=? AND role!='context' ORDER BY id',(run['id'],))]
+            messages=[dict(r) for r in c.execute("SELECT id,role,text,created FROM agent_messages WHERE run_id=? AND role!='context' ORDER BY id",(run['id'],))]
             steps=[dict(r) for r in c.execute('SELECT id,tool,model,created FROM agent_steps WHERE run_id=? ORDER BY id',(run['id'],))]
         with self.usage_db() as c:usage=c.execute('SELECT COALESCE(SUM(COALESCE(actual,reserved)),0) FROM agent_usage').fetchone()[0]
         return {'config':model_config(),'run':run,'messages':messages,'steps':steps,'usage_usd':round(usage,6),'budget_usd':float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))}
