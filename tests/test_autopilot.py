@@ -60,7 +60,8 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_pursue_opens_the_source_in_billys_browser_when_idle(self):
         url='https://berkeleyca.gov/doing-business/working-city/bid-proposal-opportunities/environmental-review-support-and-technical'
-        rfp=(await server.create_rfp(server.RFPInput(title='Browser demo',url=url)))['id']
+        with patch('app.server.public_url',return_value=url):
+            rfp=(await server.create_rfp(server.RFPInput(title='Browser demo',url=url)))['id']
         with server.db() as c:c.execute("INSERT INTO agent_runs VALUES ('run','running',NULL,'test',1,1,'')")
         await server.agent.execute('run','pursue',{'rfp_id':rfp,'reason':'fit'})
         await server.b.task
@@ -71,7 +72,8 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
         server.b.busy=False
 
     async def test_blocked_source_page_degrades_to_a_note_not_an_error(self):
-        rfp=(await server.create_rfp(server.RFPInput(title='Blocked portal',url='https://agency.example/blocked')))['id']
+        with patch('app.server.public_url',return_value='https://agency.example/blocked'):
+            rfp=(await server.create_rfp(server.RFPInput(title='Blocked portal',url='https://agency.example/blocked')))['id']
         with server.db() as c:c.execute("INSERT INTO agent_runs VALUES ('run','running',NULL,'test',1,1,'')")
         async def blocked(url,source_id=None,company=False):
             server.b.error='The portal returned HTTP 403. You can inspect it or try again.';server.b.status='Needs your attention';server.b.busy=False;return None
