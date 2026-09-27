@@ -1,5 +1,5 @@
 import {startRecording} from './voice.js';
-export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onSaved}) {
+export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onSaved,sendAgent}) {
   const $=s=>document.querySelector(s);
   let context={},active=false,busy=false,recording=null,startingMic=false,config=null,generation=0,visible=false;
   const drafts=new Map();
@@ -27,6 +27,11 @@ export function createDiscussion({api,esc,toast,selectPanel,showView,onState,onS
   }
   async function turn(text,action='answer'){
     if(busy||recording||startingMic)return false;
+    if(action==='answer'&&sendAgent){
+      const sent=await sendAgent(text,context);
+      if(sent){active=false;onState(null);$('#discuss-session').hidden=true;$('#chat-scroll').hidden=false;$('#chat-form').hidden=false;showView('chats');}
+      return sent;
+    }
     const token=generation;busy=true;controls();motion('thinking');$('#discuss-status').textContent='Billy is considering your answer…';
     try{const result=await api('/discussion',{...context,text,action});render(result);await onSaved();
       $('#discuss-status').textContent='';

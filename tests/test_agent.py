@@ -13,10 +13,13 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await server.agent.close()
         with server.db() as c:
-            for table in ('agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages'):
+            for table in ('agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages','company_tasks'):
                 c.execute('DELETE FROM '+table)
         self.env=patch.dict(os.environ,{'VULTR_SERVERLESS_INFERENCE_API_KEY':'test-only','BILLY_VULTR_MODEL':'test-model'})
         self.env.start();self.addCleanup(self.env.stop)
+        async def accept_review(rid,messages,action):return action,'test-model',{}
+        self.review_patch=patch.object(server.agent,'review_completion',side_effect=accept_review)
+        self.review_patch.start();self.addCleanup(self.review_patch.stop)
 
     async def asyncTearDown(self):await server.agent.close()
 
@@ -156,3 +159,89 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
             await server.agent.task
             provider.assert_not_called()
         self.assertIn('budget',(await server.agent.snapshot())['run']['error'])
+
+class ActionCompletionTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        await AgentTests.asyncSetUp(self)
+        self.review_patch.stop()
+
+    async def asyncTearDown(self):await server.agent.close()
+
+    # The inherited tests isolate the ordinary loop. These cases exercise the
+    # real completion-check path with explicit provider/executor receipts.
+    async def test_completion_check_recovers_unperformed_actions(self):
+        for name,args in [('save_fact',{'field':'team.lead','value':'Pat','quote':'Our lead is Pat.'}),
+                          ('queue_followup',{'field':'insurance.coverage','title':'Research coverage','quote':'Research coverage'}),
+                          ('save_section',{'section_id':1,'title':'Approach','body':'Revised','version':2}),
+                          ('export_pdf',{}),('read_company_website',{})]:
+            with self.subTest(tool=name):
+                actions=iter([AgentAction(tool='finish',arguments={'message':'I can help with that.'}),
+                    AgentAction(tool=name,arguments=args),
+                    AgentAction(tool='finish',arguments={'message':'Done.'}),
+                    AgentAction(tool='finish',arguments={'message':'Done.'})])
+                with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{})),patch.object(server.agent,'execute',return_value={'saved':True}) as execute:
+                    await server.agent.message(AgentTurn(text='Please perform the requested change.',request_id='review-'+name))
+                    await server.agent.task
+                execute.assert_awaited_once_with((await server.agent.snapshot())['run']['id'],name,args)
+                self.assertEqual((await server.agent.snapshot())['run']['status'],'complete')
+
+    async def test_information_and_missing_approval_can_stop_without_action(self):
+        for terminal in ('ask','finish'):
+            action=AgentAction(tool=terminal,arguments={'message':'Submission is not connected. Your draft is saved.'})
+            with patch('app.agent.complete',return_value=(action,'test-model',{})),patch.object(server.agent,'execute') as execute:
+                await server.agent.message(AgentTurn(text='Can you submit this?',request_id='blocked-'+terminal))
+                await server.agent.task
+            execute.assert_not_awaited()
+            self.assertEqual((await server.agent.snapshot())['run']['status'],'waiting' if terminal=='ask' else 'complete')
+
+    async def test_successful_mutation_not_repeated_after_review(self):
+        save=AgentAction(tool='export_pdf')
+        finish=AgentAction(tool='finish',arguments={'message':'The PDF is ready.'})
+        actions=iter([save,finish,save,finish,finish])
+        with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{})),patch.object(server.agent,'execute',return_value={'id':'pdf-1'}) as execute:
+            await server.agent.message(AgentTurn(text='Export my PDF.',request_id='no-duplicate'))
+            await server.agent.task
+        execute.assert_awaited_once()
+        self.assertEqual((await server.agent.snapshot())['run']['status'],'complete')
+
+    async def test_failed_action_is_not_suppressed_as_completed(self):
+        save=AgentAction(tool='save_section',arguments={'section_id':1})
+        finish=AgentAction(tool='finish',arguments={'message':'Saved.'})
+        actions=iter([save,finish,save,finish,finish])
+        with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{})),patch.object(server.agent,'execute',side_effect=[ValueError('Read current version first'),{'saved':True}]) as execute:
+            await server.agent.message(AgentTurn(text='Save my edits.',request_id='recover'))
+            await server.agent.task
+        self.assertEqual(execute.await_count,2)
+        self.assertEqual((await server.agent.snapshot())['run']['status'],'complete')
+
+    async def test_export_after_edit_is_not_a_duplicate(self):
+        export=AgentAction(tool='export_pdf')
+        edit=AgentAction(tool='save_section',arguments={'section_id':1})
+        finish=AgentAction(tool='finish',arguments={'message':'Updated PDF ready.'})
+        actions=iter([export,edit,export,finish,finish])
+        with patch('app.agent.complete',side_effect=lambda _: (next(actions),'test-model',{})),patch.object(server.agent,'execute',return_value={'saved':True}) as execute:
+            await server.agent.message(AgentTurn(text='Export, edit, then export again.',request_id='reexport'))
+            await server.agent.task
+        self.assertEqual([c.args[1] for c in execute.await_args_list],['export_pdf','save_section','export_pdf'])
+
+    async def test_handoff_preserves_roles_and_short_answer_evidence(self):
+        from app.agent import DiscussionContext
+        with server.db() as c:
+            c.execute("DELETE FROM discussion_messages WHERE scope='general'")
+            c.execute("INSERT INTO discussion_messages(scope,role,text,at) VALUES ('general','billy','Should I queue research into liability coverage?',1)")
+        seen=[]
+        actions=iter([AgentAction(tool='company'),AgentAction(tool='queue_followup',arguments={'field':'insurance.coverage','title':'Research liability options','quote':'Yes'}),AgentAction(tool='finish',arguments={'message':'Queued coverage research.'}),AgentAction(tool='finish',arguments={'message':'Queued coverage research.'})])
+        def provider(messages):
+            seen.append(messages.copy());return next(actions),'test-model',{}
+        with patch('app.agent.complete',side_effect=provider):
+            await server.agent.message(AgentTurn(text='Yes',context=DiscussionContext(),request_id='handoff'))
+            await server.agent.task
+        self.assertTrue(any(m['role']=='assistant' and m['content']=='Should I queue research into liability coverage?' for m in seen[0]))
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'complete')
+        self.assertEqual(snap['messages'][-2]['text'],'Yes')
+        with server.db() as c:
+            result=json.loads(c.execute("SELECT result FROM agent_steps WHERE tool='queue_followup'").fetchone()[0])
+        self.assertEqual(result['status'],'Queued')
+        with self.assertRaises(ValueError):
+            await server.agent.execute(snap['run']['id'],'queue_followup',{'field':'insurance.coverage','title':'Different task','quote':'es'})

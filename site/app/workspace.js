@@ -1,10 +1,10 @@
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
 import {connectWorkspace} from './workspaces.js?v=profile-ring-1';
-import {createAgentChat} from './agent-chat.js?v=company-web-1';
+import {createAgentChat} from './agent-chat.js?v=action-loop-1';
 import {createOpportunityFeed} from './opportunities.js?v=billy-reviewed-1';
-import {createDiscussion} from './discuss.js?v=auto-panel-1';
+import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=company-web-1';
+import {createCompanyProfile} from './company.js?v=action-loop-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=company-web-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -53,9 +53,9 @@ setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),openDocument});
 const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
-const discussion=createDiscussion({api,esc,toast,selectPanel,showView,onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
+const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
 let chatSuggestions;
-const agentChat=createAgentChat({api,esc,toast,openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();chatSuggestions?.update();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();chatSuggestions?.update();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
@@ -98,9 +98,14 @@ function addMessage(text, user=false, buttons=[]) {
   sessionStorage.setItem(storageKey('chat-text'),JSON.stringify([...$('#conversation').children].map(el=>({user:el.classList.contains('user'),text:el.querySelector('div')?.textContent}))));
 }
 try { const messages=JSON.parse(sessionStorage.getItem(storageKey('chat-text'))||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
+async function sendContextualMessage(text,context={}) {
+  const sent=await agentChat.send(text,context);
+  if(sent){$('#company-chat-exit').click();await agentChat.poll();}
+  return sent;
+}
 $('#chat-form').onsubmit=async e=>{
   e.preventDefault();const input=$('#chat-input').value.trim();if(!input)return;
-  if(companyProfile.hasChat()){if(await companyProfile.answer(input))$('#chat-input').value='';chatSuggestions.update();return;}
+  if(companyProfile.hasChat()){if(await sendContextualMessage(input,{field:companyProfile.chatContext(),source:'company'}))$('#chat-input').value='';chatSuggestions.update();return;}
   if(await agentChat.send(input))$('#chat-input').value='';
   chatSuggestions.update();
 };
