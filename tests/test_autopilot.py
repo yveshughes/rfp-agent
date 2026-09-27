@@ -70,6 +70,20 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(server.b.research.await_count,1)   # a busy browser is never interrupted
         server.b.busy=False
 
+    async def test_blocked_source_page_degrades_to_a_note_not_an_error(self):
+        rfp=(await server.create_rfp(server.RFPInput(title='Blocked portal',url='https://agency.example/blocked')))['id']
+        with server.db() as c:c.execute("INSERT INTO agent_runs VALUES ('run','running',NULL,'test',1,1,'')")
+        async def blocked(url,source_id=None,company=False):
+            server.b.error='The portal returned HTTP 403. You can inspect it or try again.';server.b.status='Needs your attention';server.b.busy=False;return None
+        with patch.object(server.b,'research',side_effect=blocked):
+            await server.agent.execute('run','pursue',{'rfp_id':rfp,'reason':'fit'})
+            await server.b.task
+        self.assertIsNone(server.b.error)
+        self.assertEqual(server.b.status,'Working from the saved original')
+        with server.db() as c:
+            kind,title=c.execute("SELECT kind,title FROM events ORDER BY id DESC LIMIT 1").fetchone()
+        self.assertEqual((kind,title),('working','Source page not available to Billy’s browser'))
+
     async def test_queue_lists_pipeline_rfps_first(self):
         import json
         a=(await server.create_rfp(server.RFPInput(title='Catalog candidate')))['id']

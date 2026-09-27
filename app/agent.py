@@ -267,8 +267,16 @@ class BillyAgent:
         skipped when the browser is busy, handed to the user, or waiting on an approval."""
         b=self.browser
         if not url or not str(url).startswith(('http://','https://')) or b.busy or b.controller!='billy' or b.pending:return False
+        async def show():
+            result=await b.research(url)
+            if result is None and b.error:
+                # A blocked or unavailable agency page is not a problem needing the user: Billy keeps
+                # working from the saved original. Leave a plain note, not an attention state.
+                note=b.error;b.error=None;b.status='Working from the saved original'
+                self.event('working','Source page not available to Billy’s browser',f'{note} Continuing with the saved original documents.')
+            return result
         b.busy=True
-        b.task=asyncio.create_task(b.research(url))
+        b.task=asyncio.create_task(show())
         return True
 
     def selected(self,rid):
