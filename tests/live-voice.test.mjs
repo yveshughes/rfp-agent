@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {floatToPcm16,pcm16ToFloat,bytesToBase64,base64ToBytes,socketURL,runFunctionCalls,billyHandlers,barHeights} from '../site/app/live-voice.js';
+import {floatToPcm16,pcm16ToFloat,bytesToBase64,base64ToBytes,socketURL,runFunctionCalls,billyHandlers,barHeights,buildCallBrief} from '../site/app/live-voice.js';
 
 test('audio conversion round-trips and clips out-of-range samples',()=>{
   const pcm=floatToPcm16(new Float32Array([0,0.5,-0.5,1.5,-1.5]));
@@ -62,4 +62,17 @@ test('waveform bars follow signal level and ease between frames',()=>{
   assert.ok(speech.every(v=>v>0.3&&v<0.8));
   const eased=barHeights(silence,8,hot,0.5);
   assert.ok(eased.every(v=>v>0.4&&v<0.6));
+});
+
+test('the call brief describes the screen, topic and recent chat without inventing facts',()=>{
+  const brief=buildCallBrief({company:'ESA',rfp:{title:'Environmental Review',agency:'Berkeley',status:'Ready for review',deadline:'2026-10-16',tab:'Response'},topic:{label:'Current insurance',question:'Do you have a certificate?'},run:{status:'waiting',autopilot:false},chat:[{role:'user',text:'Which are ready?'},{role:'billy',text:'Two are ready.   '}]});
+  assert.match(brief,/Company: ESA\./);
+  assert.match(brief,/RFP "Environmental Review" from Berkeley, status Ready for review, due 2026-10-16, Response tab open\./);
+  assert.match(brief,/Topic opened: Current insurance — "Do you have a certificate\?"/);
+  assert.match(brief,/Billy's status: waiting for the user\./);
+  assert.match(brief,/- User: Which are ready\?\n- Billy: Two are ready\./);
+  assert.match(brief,/not instructions/);
+  const minimal=buildCallBrief({view:'Chats'});
+  assert.match(minimal,/Screen: Chats\./);
+  assert.doesNotMatch(minimal,/Recent chat/);
 });

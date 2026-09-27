@@ -10,7 +10,7 @@ import {createDiscussion} from './discuss.js?v=voice-overlay-1';
 import {createRFPDetail} from './rfp-detail.js?v=response-canvas-1';
 import {createCompanyProfile} from './company.js?v=direct-edits-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=phone-conversation-1';
-import {createLiveVoice} from './live-voice.js?v=overlay-2';
+import {createLiveVoice} from './live-voice.js?v=brief-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -69,7 +69,20 @@ let reviewSnapshot=null;
 const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},importDocument:()=>companyProfile.documents()});
 autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
 // Live voice: Gemini listens and speaks; ask_billy routes every workspace question through the agent.
-liveVoice=createLiveVoice({api,toast,agentChat,onState:value=>{voiceState=value;updateBillyMotion();},elements:{button:$('#call-billy'),bar:$('#voice-call'),status:$('#voice-call-status'),transcript:$('#voice-call-transcript'),hangup:$('#voice-hangup'),overlay:$('#voice-overlay'),wave:$('#voice-wave'),overlayStatus:$('#voice-overlay-status'),overlayHangup:$('#voice-overlay-hangup')}});
+// What the page shows when a call starts. Billy's voice opens with it; facts still come from ask_billy.
+function getPageContext(){
+  const snapshot=agentChat.getSnapshot(),run=snapshot?.run;
+  const page={company:$('#workspace-name').textContent.trim(),view:views[currentView],chat:(snapshot?.messages||[]).filter(m=>m.role==='user'||m.role==='billy').map(m=>({role:m.role,text:m.text}))};
+  if(run)page.run={status:run.status,autopilot:run.autopilot,blocked_reason:run.blocked_reason};
+  if(currentView==='rfps'&&!$('#rfp-detail-page').hidden&&editingRFP){
+    const r=rfpRows.find(x=>x.id===editingRFP);const tab=document.querySelector('[data-rfp-tab][aria-selected="true"]')?.dataset.rfpTab;
+    if(r){page.rfp={title:r.title,agency:r.agency,status:r.status,deadline:r.deadline,tab:tab==='response'?'Response':tab==='files'?'RFP Files':tab?`section ${tab}`:''};page.agentContext={rfp_id:r.id,section:['1','2','3'].includes(tab)?tab:'files'};}
+  }
+  if(currentView==='company')page.section=document.querySelector('[data-company-section][aria-selected="true"]')?.textContent.trim();
+  if(!$('#discuss-session').hidden){const question=[...document.querySelectorAll('#discuss-messages .discuss-message.billy p')].at(-1)?.textContent;page.topic={label:$('#discuss-context').textContent.trim(),question};}
+  return page;
+}
+liveVoice=createLiveVoice({api,toast,agentChat,getPageContext,onState:value=>{voiceState=value;updateBillyMotion();},elements:{button:$('#call-billy'),bar:$('#voice-call'),status:$('#voice-call-status'),transcript:$('#voice-call-transcript'),hangup:$('#voice-hangup'),overlay:$('#voice-overlay'),wave:$('#voice-wave'),overlayStatus:$('#voice-overlay-status'),overlayHangup:$('#voice-overlay-hangup')}});
 window.billyVoice=liveVoice;
 // Settings: Billy's voice for this workspace. Saved server-side; the next call picks it up.
 async function loadVoiceSetting(){
