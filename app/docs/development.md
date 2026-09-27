@@ -67,7 +67,7 @@ All secrets belong in the server environment, never frontend JavaScript or versi
 | `META_API_KEY` / `MODEL_API_KEY` | Optional Meta transcription key for push-to-talk; first takes precedence |
 | `GEMINI_API_KEY` | No default; enables live voice by letting the server mint Gemini Live session tokens |
 | `BILLY_GEMINI_LIVE_MODEL` | `gemini-3.8-live`; Live API model locked into each voice token |
-| `BILLY_GEMINI_VOICE` | Empty (provider default); server-wide Gemini prebuilt voice such as `Sulafat`. A workspace's Settings choice, stored in its `state` table, overrides it |
+| `BILLY_GEMINI_VOICE` | `Achird` when unset; server-wide Gemini prebuilt voice. A workspace's Settings choice, stored in its `state` table, overrides it |
 
 The main model endpoint is configured in `agent.py` as `https://api.vultrinference.com/v1`. The current estimator hard-codes $0.75 input / $3 output per million tokens as implementation assumptions. Do not treat this table as current provider pricing. Revalidate estimator/model compatibility before changing models; the budget is not an account-wide billing guarantee.
 
