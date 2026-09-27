@@ -110,5 +110,6 @@ test('agent document review selects Activity only during the current running tur
 test('approval and browser control remain accessible without stale disconnected activity',()=>{
   assert.equal(resolveBillyPanel({...ready,browser:{...ready.browser,pending:{id:'approval'}}},{chatOpen:true}),'decisions');
   assert.equal(resolveBillyPanel({...ready,browser:{...ready.browser,controller:'you'}},{chatOpen:true}),'work');
-  assert.equal(resolveBillyPanel({...ready,document_jobs:1},{chatOpen:true,connected:false}),'discuss');
+  assert.equal(resolveBillyPanel({...ready,document_jobs:1},{chatOpen:true,connected:false}),'work');
+  assert.equal(resolveBillyPanel(null,{chatOpen:true,discussionState:'ready'}),'work');
 });

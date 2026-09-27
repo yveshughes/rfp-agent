@@ -5,7 +5,7 @@ import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities
 import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=profile-colors-1';
-import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=idle-desk-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=idle-discussion-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -43,7 +43,8 @@ const billyMotion=createBillyMotion();
 let documentRequests=0, workspaceConnected=false, discussionState=null, agentState=null, agentActivity=null, lastAutoPanel=null;
 const updateBillyMotion=(forcePanel=false)=>{
   const options={connected:workspaceConnected,documentRequests,discussionState:discussionState||agentState,agentActivity,chatOpen:currentView==='chats'};
-  billyMotion.update(state,options);
+  const resolved=billyMotion.update(state,options);
+  document.querySelector('[data-panel="discuss"]').hidden=resolved.motion==='idle';
   const panel=resolveBillyPanel(state,options);
   // Follow real transitions; a manual tab choice remains usable between them.
   if(panel && (forcePanel || panel!==lastAutoPanel))selectPanel(panel);
@@ -85,7 +86,7 @@ function showView(name) {
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>showView(button.dataset.view)));
 $('#profile-shortcut').onclick=()=>{$('#workspace-menu').hidden=true;$('#workspace-switcher').setAttribute('aria-expanded','false');showView('company');};
 $('#collapse-nav').onclick=()=>{const collapsed=$('#workspace').classList.toggle('nav-collapsed');$('#collapse-nav').setAttribute('aria-label',collapsed?'Expand navigation':'Collapse navigation');};
-function selectPanel(name){document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
+function selectPanel(name){if(name==='discuss'&&document.querySelector('[data-panel="discuss"]').hidden)name='work';document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
 document.querySelectorAll('[data-panel]').forEach(button=>button.onclick=()=>selectPanel(button.dataset.panel));
 function addMessage(text, user=false, buttons=[]) {
   if(companyProfile.hasChat()){$('#conversation').hidden=false;if($('#agent-conversation'))$('#agent-conversation').hidden=true;}

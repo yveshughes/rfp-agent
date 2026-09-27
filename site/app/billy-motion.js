@@ -34,6 +34,7 @@ export function resolveAgentActivity(snapshot) {
 
 export function resolveBillyPanel(state, options={}) {
   const motion=resolveBillyMotion(state,options);
+  if(motion.motion==='idle')return 'work';
   if(options.connected!==false && state?.browser?.pending)return 'decisions';
   if(['reading','researching'].includes(motion.motion) || (options.connected!==false && state?.browser?.controller==='you'))return 'work';
   if(options.chatOpen || options.discussionState)return 'discuss';
@@ -92,6 +93,7 @@ export function createBillyMotion() {
         }
       }
       sync();
+      return resolved;
     }
   };
 }
