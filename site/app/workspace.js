@@ -1,5 +1,5 @@
 import {createChatAttachments} from './chat-attachments.js?v=1';
-import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
+import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=website-prompt-1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
 import {createAgentChat} from './agent-chat.js?v=document-review-2';
 import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities-1';
@@ -141,14 +141,14 @@ $('#state-filter').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();closeSt
 document.addEventListener('click',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
 document.addEventListener('focusin',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
 $('#start-california').onclick=()=>{selectedStates.clear();selectedStates.add('CA');updateStateFilter();offset=0;showView('sources');};
-$('#start-berkeley').onclick=()=>startResearch({source_id:5426},'Berkeley, California');
-$('#start-import').onclick=()=>{
+function draftStarterPrompt(prompt){
   const input=$('#chat-input');if(input.disabled)return;
-  const prompt='Review my previous RFP response and use it to build my company profile for future proposals. Extract the company details, services, experience, team, and qualifications supported by the document.';
   if(!input.value.includes(prompt))input.value=input.value.trim()?input.value.trim()+'\n\n'+prompt:prompt;
   input.focus();input.setSelectionRange(input.value.length,input.value.length);
   input.dispatchEvent(new Event('input',{bubbles:true}));
-};
+}
+$('#start-website').onclick=()=>draftStarterPrompt('Review my company website and extract information about my company to build my profile for future proposals. Include company details, services, experience, team, and qualifications supported by the website.');
+$('#start-import').onclick=()=>draftStarterPrompt('Review my previous RFP response and use it to build my company profile for future proposals. Extract the company details, services, experience, team, and qualifications supported by the document.');
 async function loadSources(){
   const request=++pendingSearch;
   try{const data=await api('/sources?'+new URLSearchParams({q:$('#source-search').value,state:[...selectedStates].sort().join(','),offset:String(offset),limit:'30',watched:String($('#watched-only').checked)}));if(request!==pendingSearch)return;sourceTotal=data.total;$('#watch-count').textContent=`${data.watch_count} / ${data.watch_limit} sources watched`;

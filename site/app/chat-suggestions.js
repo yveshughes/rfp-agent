@@ -1,6 +1,6 @@
 const starters = [
   'Find RFPs that match my business and help me apply.',
-  'Find RFPs from Berkeley that match my company.',
+  'Review my company website and extract information about my company.',
   'Review my company profile and tell me what is missing.',
   'Help me import a previous RFP response.',
 ];
