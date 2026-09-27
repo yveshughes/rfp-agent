@@ -34,8 +34,15 @@ if SOURCES is None: SOURCES = json.loads(SOURCE_FILE.read_text()) if SOURCE_FILE
 DB = DATA / 'workspace.sqlite3'
 CATALOG_DB = Path(globals().get('_workspace_catalog') or DATA / 'catalog.sqlite3')
 
+class ClosingConnection(sqlite3.Connection):
+    def __exit__(self, *args):
+        try:
+            return super().__exit__(*args)
+        finally:
+            self.close()
+
 def catalog_db():
-    c=sqlite3.connect(CATALOG_DB)
+    c=sqlite3.connect(CATALOG_DB,factory=ClosingConnection)
     c.row_factory=sqlite3.Row
     return c
 WATCH_LIMIT = int(os.environ.get('BILLY_WATCH_LIMIT', '10'))
@@ -43,7 +50,7 @@ ENVIRONMENT = os.environ.get('BILLY_ENVIRONMENT', 'This Mac')
 ALLOWED_ORIGINS = set(os.environ.get('BILLY_ORIGINS', 'http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081').split(','))
 
 def db():
-    c = sqlite3.connect(DB)
+    c = sqlite3.connect(DB,factory=ClosingConnection)
     c.row_factory = sqlite3.Row
     return c
 
