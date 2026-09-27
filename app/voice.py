@@ -41,14 +41,20 @@ def live_model():
     return os.environ.get('BILLY_GEMINI_LIVE_MODEL') or DEFAULT_MODEL
 
 
+def live_voice():
+    # One of Gemini's prebuilt voice names; empty means the provider default.
+    return (os.environ.get('BILLY_GEMINI_VOICE') or '').strip()
+
+
 def voice_config():
-    return {'provider': 'Gemini Live', 'model': live_model(), 'ready': bool(gemini_key())}
+    return {'provider': 'Gemini Live', 'model': live_model(), 'voice': live_voice() or 'default', 'ready': bool(gemini_key())}
 
 
 def setup_config():
     """The Live session setup the browser sends. Kept server-side as the single source of truth."""
     return {'model': 'models/' + live_model(),
-            'generationConfig': {'responseModalities': ['AUDIO']},
+            'generationConfig': {'responseModalities': ['AUDIO'],
+                                 **({'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': live_voice()}}}} if live_voice() else {})},
             'systemInstruction': {'parts': [{'text': VOICE_INSTRUCTION}]},
             'tools': [{'functionDeclarations': FUNCTIONS}],
             'inputAudioTranscription': {}, 'outputAudioTranscription': {},

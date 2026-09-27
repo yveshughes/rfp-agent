@@ -14,11 +14,14 @@ class FakeResponse(io.BytesIO):
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{'GEMINI_API_KEY':'','BILLY_GEMINI_LIVE_MODEL':''});self.env.start()
+        self.env=patch.dict(os.environ,{'GEMINI_API_KEY':'','BILLY_GEMINI_LIVE_MODEL':'','BILLY_GEMINI_VOICE':''});self.env.start()
         self.addCleanup(self.env.stop)
 
     async def test_config_and_token_require_a_server_key(self):
-        self.assertEqual(await server.voice_config(),{'provider':'Gemini Live','model':'gemini-3.8-live','ready':False})
+        self.assertEqual(await server.voice_config(),{'provider':'Gemini Live','model':'gemini-3.8-live','voice':'default','ready':False})
+        self.assertNotIn('speechConfig',voice.setup_config()['generationConfig'])
+        with patch.dict(os.environ,{'BILLY_GEMINI_VOICE':'Sulafat'}):
+            self.assertEqual(voice.setup_config()['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Sulafat')
         with self.assertRaises(server.HTTPException) as e:await server.voice_token()
         self.assertEqual(e.exception.status_code,503)
 
