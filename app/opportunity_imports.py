@@ -75,15 +75,20 @@ def register_imports(app,db,catalog_db):
 
     def sync():
         batches,items=snapshot()
-        now=time.time();result={}
-        with db() as c:
-            c.execute('BEGIN IMMEDIATE')
+        now=time.time()
+        def reconcile(c,apply):
+            """One pass over the catalog. Without apply it only reports whether writes are needed,
+            so the steady-state feed poll never takes a write lock on the company database."""
+            result={};writes=False
             links={r['catalog_id']:dict(r) for r in c.execute('SELECT * FROM opportunity_catalog_links')}
-            existing={canonical(r['url']):r['id'] for r in c.execute('SELECT id,url FROM rfps') if r['url']}
-            existing.update({canonical(r['listing_url']):r['rfp_id'] for r in c.execute('SELECT * FROM opportunity_sources') if r['listing_url']})
+            rfps={r['id']:dict(r) for r in c.execute('SELECT id,url,notes FROM rfps')}
+            existing={canonical(r['url']):r['id'] for r in rfps.values() if r['url']}
+            existing.update({canonical(r['listing_url']):r['rfp_id'] for r in c.execute('SELECT rfp_id,listing_url FROM opportunity_sources') if r['listing_url']})
             for item in items:
                 row=json.loads(item['metadata']);link=links.get(item['id'])
                 if not link and item['active']:
+                    writes=True
+                    if not apply:continue
                     rid=existing.get(item['url_key']);owned=not bool(rid)
                     if owned:
                         rid=uuid.uuid4().hex
@@ -95,15 +100,24 @@ def register_imports(app,db,catalog_db):
                     c.execute('INSERT INTO opportunity_catalog_links VALUES (?,?,?)',(rid,item['id'],int(owned)))
                     link={'rfp_id':rid,'created_by_catalog':int(owned)}
                 if link:
-                    if link['created_by_catalog']:
-                        # Only replace the exact generated text; never alter a customer's edits.
-                        c.execute('UPDATE rfps SET notes=? WHERE id=? AND notes=?',(customer_notes(row),link['rfp_id'],legacy_notes(row)))
+                    saved=rfps.get(link['rfp_id'])
+                    # Only replace the exact generated legacy text; never alter a customer's edits.
+                    if link['created_by_catalog'] and saved and (saved['notes'] or '').startswith('Shared catalog candidate;') and saved['notes']==legacy_notes(row):
+                        writes=True
+                        if apply:c.execute('UPDATE rfps SET notes=? WHERE id=?',(customer_notes(row),link['rfp_id']))
                     previous=result.get(link['rfp_id'])
                     current={**row,'batch_id':item['batch_id'],'label':item['label'],'active':bool(item['active']),'created_by_catalog':link['created_by_catalog']}
                     if previous:
                         chosen=previous if previous['active'] else current
                         current={**chosen,'active':previous['active'] or current['active'],'created_by_catalog':previous['created_by_catalog'] or current['created_by_catalog']}
                     result[link['rfp_id']]=current
+            return result,writes
+        with db() as c:
+            result,writes=reconcile(c,False)
+        if writes:
+            with db() as c:
+                c.execute('BEGIN IMMEDIATE')
+                result,_=reconcile(c,True)
         return result,batches
 
     @app.get('/api/opportunity-imports')

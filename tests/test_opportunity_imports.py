@@ -16,6 +16,29 @@ class ImportTests(unittest.IsolatedAsyncioTestCase):
             c.execute('DELETE FROM catalog_items');c.execute('DELETE FROM catalog_batches')
     def request(self):
         return OpportunityImport(label='Jev California test',rows=[dict(title='Electrical upgrades',url='https://example.com/electrical',agencies=['Agency'],description='Upgrade electrical panels and switchgear.',status='open',description_quality='listing_description')])
+
+    async def test_steady_state_sync_reads_only_and_legacy_notes_are_cleaned_once(self):
+        from app.opportunity_imports import legacy_notes,customer_notes
+        await server.import_opportunities(self.request())
+        row=(await server.opportunity_feed())['rows'][0]
+        payload=self.request().rows[0].model_dump()
+        with server.db() as c:c.execute('UPDATE rfps SET notes=? WHERE id=?',(legacy_notes(payload),row['id']))
+        await server.opportunity_feed()
+        self.assertEqual(server.require_rfp(row['id'])['notes'],customer_notes(payload))
+        with server.db() as c:c.execute("UPDATE rfps SET notes='Edited by the owner' WHERE id=?",(row['id'],))
+        # Once every catalog item is linked and no legacy text remains, polling the feed
+        # must not open a write transaction on the company database.
+        writes=[]
+        class Spy(server.ClosingConnection):
+            def execute(self,sql,*args):
+                if sql.startswith('BEGIN IMMEDIATE'):writes.append(sql)
+                return super().execute(sql,*args)
+        from unittest.mock import patch
+        with patch.object(server,'ClosingConnection',Spy):
+            await server.opportunity_feed()
+        self.assertEqual(writes,[])
+        self.assertEqual(server.require_rfp(row['id'])['notes'],'Edited by the owner')
+
     async def test_remove_restore_preserves_pursued_rfp_and_user_work(self):
         result=await server.import_opportunities(self.request())
         rows=(await server.opportunity_feed())['rows'];self.assertEqual(len(rows),1)
