@@ -15,9 +15,11 @@
       "sha256": "f2463a97c6f6f565992a593949675fdb47cad685397506c7cc1c0fde27832840"
     },
     "waiting": {
-      "file": "waiting.mp4",
-      "poster": "waiting.jpg",
-      "sha256": "0ebe2d83fd931974323008d8781c32a9febc876c004d7fd13f6baf2ed51e28ec"
+      "file": "waiting-wave.mp4",
+      "poster": "waiting-wave.jpg",
+      "generator": "Higgsfield \u00b7 Seedance 2.0",
+      "description": "Billy stands up and waves toward the viewer to ask for attention.",
+      "sha256": "26e148116c3d972615b358a4497590ee488fcf1a8cca2745785544277819718c"
     },
     "reading": {
       "file": "reading.mp4",

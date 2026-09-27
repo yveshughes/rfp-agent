@@ -6,7 +6,7 @@ export const motions = {
   idle: {name:'Idle', description:'Billy’s empty desk, grayed out while he is away.'},
   researching: {name:'Researching', description:'Scanning a source and working at the keyboard.'},
   reading: {name:'Reading', description:'Reviewing the pages of a document.'},
-  waiting: {name:'Needs you', description:'Hands off the keyboard, waiting for your input.'},
+  waiting: {name:'Needs you', description:'Billy turns toward you and waves to get your attention.'},
 };
 
 // Visual state follows work, never a timer pretending to perform a task.
@@ -92,7 +92,7 @@ export function createBillyMotion() {
         const idle=current==='idle';
         desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;
         if(!idle&&!asleep&&!onPhone){
-        const asset=['discussing','autopilot'].includes(current)?'researching':current;
+        const asset=current==='waiting'?'waiting-wave':['discussing','autopilot'].includes(current)?'researching':current;
         video.poster=`/assets/billy/${asset}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
         video.src=`/assets/billy/${asset}.mp4`;
@@ -130,7 +130,7 @@ export function setupMotionPreview() {
     stage.dataset.state=name;desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;toggle.hidden=!asleep&&!onPhone;
     sync();
     if(idle||asleep||onPhone){video.pause();return;}
-    const asset=name==='discussing'?'researching':name;
+    const asset=name==='waiting'?'waiting-wave':name==='discussing'?'researching':name;
     video.poster=`/assets/billy/${asset}.jpg`;
     video.src=`/assets/billy/${asset}.mp4`;
     video.load();
