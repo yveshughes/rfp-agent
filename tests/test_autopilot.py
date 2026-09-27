@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 
 os.environ.setdefault('BILLY_DATA_DIR',tempfile.mkdtemp(prefix='billy-autopilot-test-'))
 from app import server
@@ -21,6 +21,10 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
         env.start();self.addCleanup(env.stop)
         async def accept(rid,messages,action):return action,'test-model',{}
         review=patch.object(server.agent,'review_completion',side_effect=accept);review.start();self.addCleanup(review.stop)
+        # Pursuing an RFP opens its source in the VM browser; tests never launch Chromium.
+        async def fake_research(url,source_id=None,company=False):server.b.busy=False;return {'url':url}
+        browser=patch.object(server.b,'research',side_effect=fake_research);browser.start();self.addCleanup(browser.stop)
+        server.b.busy=False;server.b.controller='billy';server.b.pending=None
         with patch('app.server.public_url',return_value='https://agency.example/rfp'):
             self.rfp=(await server.create_rfp(server.RFPInput(title='Lighting renewal',url='https://agency.example/rfp',deadline='2099-05-01')))['id']
 
@@ -53,6 +57,34 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
         await server.save_response_section(self.rfp,'1',ResponseSection(title=changed['title'],body='Edited draft',version=changed['version'],checks=[ResponseCheck(text='Review')]))
         review=await server.response_review(self.rfp)
         self.assertFalse(review['ready']);self.assertIsNone(review['pdf']);self.assertEqual(review['rfp']['status'],'Drafting')
+
+    async def test_pursue_opens_the_source_in_billys_browser_when_idle(self):
+        url='https://berkeleyca.gov/doing-business/working-city/bid-proposal-opportunities/environmental-review-support-and-technical'
+        rfp=(await server.create_rfp(server.RFPInput(title='Browser demo',url=url)))['id']
+        with server.db() as c:c.execute("INSERT INTO agent_runs VALUES ('run','running',NULL,'test',1,1,'')")
+        await server.agent.execute('run','pursue',{'rfp_id':rfp,'reason':'fit'})
+        await server.b.task
+        server.b.research.assert_awaited_once_with(url)
+        server.b.busy=True
+        await server.agent.execute('run','pursue',{'rfp_id':rfp,'reason':'again'})
+        self.assertEqual(server.b.research.await_count,1)   # a busy browser is never interrupted
+        server.b.busy=False
+
+    async def test_queue_lists_pipeline_rfps_first(self):
+        import json
+        a=(await server.create_rfp(server.RFPInput(title='Catalog candidate')))['id']
+        b=(await server.create_rfp(server.RFPInput(title='Already pursued',status='Researching')))['id']
+        with server.db() as c:
+            c.execute("INSERT INTO agent_runs VALUES ('queue-run','running',NULL,'test',1,1,'')")
+            c.execute("INSERT INTO agent_queues VALUES ('queue-run','s1',1)")
+            c.execute('INSERT INTO discovered_rfps VALUES (?,0)',(a,))
+        with patch.object(server.agent,'feed',new=AsyncMock(return_value={'rows':[
+            {'id':a,'title':'Catalog candidate','agency':'','url':'','deadline':'','pursued':0,'status':'Researching','fit':{'score':90,'label':'Strong overlap','matches':[]},'sources':[],'reviewed':1},
+            {'id':b,'title':'Already pursued','agency':'','url':'','deadline':'','pursued':1,'status':'Researching','fit':{'score':40,'label':'Some overlap','matches':[]},'sources':[],'reviewed':1}],'method':''})):
+            result=await server.agent.execute('queue-run','opportunities',{})
+        self.assertEqual([r['title'] for r in result['rows']],['Already pursued','Catalog candidate'])
+        self.assertEqual([r['in_pipeline'] for r in result['rows']],[True,False])
+        self.assertTrue(result['in_pipeline_first'])
 
     async def test_real_blocker_is_reported_without_claiming_ready(self):
         action=AgentAction(tool='finish',arguments={'message':'The agency source is unavailable, so I couldn’t prepare a response.','blocked_reason':'The original requirements could not be retrieved.'})

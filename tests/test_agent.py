@@ -20,6 +20,10 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         async def accept_review(rid,messages,action):return action,'test-model',{}
         self.review_patch=patch.object(server.agent,'review_completion',side_effect=accept_review)
         self.review_patch.start();self.addCleanup(self.review_patch.stop)
+        # Pursuing an RFP opens its source in the VM browser; tests never launch Chromium.
+        async def fake_research(url,source_id=None,company=False):server.b.busy=False;return {'url':url}
+        browser=patch.object(server.b,'research',side_effect=fake_research);browser.start();self.addCleanup(browser.stop)
+        server.b.busy=False;server.b.controller='billy';server.b.pending=None
 
     async def asyncTearDown(self):await server.agent.close()
 
