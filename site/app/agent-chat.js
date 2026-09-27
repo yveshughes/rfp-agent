@@ -1,5 +1,5 @@
 import {renderChatAttachments} from './chat-attachments.js?v=1';
-import {resolveAgentActivity} from './billy-motion.js?v=company-web-1';
+import {resolveAgentActivity} from './billy-motion.js?v=document-review-2';
 import {renderChatOutcome} from './chat-cards.js?v=1';
 
 export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply}) {

@@ -1,12 +1,12 @@
 import {createChatAttachments} from './chat-attachments.js?v=1';
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
-import {createAgentChat} from './agent-chat.js?v=company-attachments-1';
+import {createAgentChat} from './agent-chat.js?v=document-review-2';
 import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities-1';
 import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
 import {createCompanyProfile} from './company.js?v=company-attachments-1';
-import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=idle-discussion-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=document-review-2';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);

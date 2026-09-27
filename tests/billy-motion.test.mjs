@@ -104,7 +104,7 @@ test('agent document review selects Activity only during the current running tur
   snapshot.run.status='waiting';assert.equal(resolveAgentActivity(snapshot),null);
   snapshot.run.status='running';snapshot.messages.push({role:'user',created:12});assert.equal(resolveAgentActivity(snapshot),null);
   snapshot.steps.push({tool:'open_source',created:13});assert.equal(resolveAgentActivity(snapshot),'researching');
-  snapshot.steps.push({tool:'save_section',created:14});assert.equal(resolveAgentActivity(snapshot),null);
+  snapshot.steps.push({tool:'save_section',created:14});assert.equal(resolveAgentActivity(snapshot),'researching');
 });
 
 test('approval and browser control remain accessible without stale disconnected activity',()=>{
@@ -112,4 +112,17 @@ test('approval and browser control remain accessible without stale disconnected 
   assert.equal(resolveBillyPanel({...ready,browser:{...ready.browser,controller:'you'}},{chatOpen:true}),'work');
   assert.equal(resolveBillyPanel({...ready,document_jobs:1},{chatOpen:true,connected:false}),'work');
   assert.equal(resolveBillyPanel(null,{chatOpen:true,discussionState:'ready'}),'work');
+});
+
+test('attached document review stays on Activity through extraction until Billy replies',()=>{
+  const snapshot={run:{status:'running'},messages:[{role:'user',created:20,attachments:[{id:'proposal'}]}],steps:[]};
+  const panel=()=>resolveBillyPanel(ready,{chatOpen:true,discussionState:snapshot.run.status==='running'?'thinking':null,agentActivity:resolveAgentActivity(snapshot)});
+  assert.equal(panel(),'work');
+  for(const [i,tool] of ['documents','read_document','save_fact','company','save_fact'].entries()){
+    snapshot.steps.push({tool,created:21+i});
+    assert.equal(resolveAgentActivity(snapshot),'reading');assert.equal(panel(),'work');
+  }
+  for(const status of ['waiting','complete','error']){snapshot.run.status=status;assert.equal(resolveAgentActivity(snapshot),null);assert.equal(panel(),'discuss');}
+  snapshot.run.status='running';snapshot.messages.push({role:'user',created:30,text:'Hello'});
+  assert.equal(resolveAgentActivity(snapshot),null);assert.equal(panel(),'discuss');
 });

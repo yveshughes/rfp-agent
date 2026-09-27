@@ -25,10 +25,15 @@ export function resolveBillyMotion(state, {connected=true, documentRequests=0, d
 
 export function resolveAgentActivity(snapshot) {
   if(snapshot?.run?.status!=='running')return null;
-  const step=snapshot.steps?.at(-1),user=snapshot.messages?.filter(m=>m.role==='user').at(-1);
-  if(!step || (user && step.created<user.created))return null;
-  if(['read_document','inspect_rfp'].includes(step.tool))return 'reading';
-  if(['open_source','read_company_website','opportunities'].includes(step.tool))return 'researching';
+  const user=snapshot.messages?.filter(m=>m.role==='user').at(-1);
+  // Keep the current review visible through extraction/saving and model pauses.
+  // Completed steps from earlier user turns must never wake stale activity.
+  const currentSteps=(snapshot.steps||[]).filter(step=>!user||step.created>=user.created);
+  for(const step of currentSteps.toReversed()){
+    if(['read_document','inspect_rfp'].includes(step.tool))return 'reading';
+    if(['open_source','read_company_website','opportunities'].includes(step.tool))return 'researching';
+  }
+  if(user?.attachments?.length)return 'reading';
   return null;
 }
 
