@@ -148,6 +148,11 @@ $('#state-filter').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();closeSt
 document.addEventListener('click',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
 document.addEventListener('focusin',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
 $('#start-california').onclick=()=>{selectedStates.clear();selectedStates.add('CA');updateStateFilter();offset=0;showView('sources');};
+async function loadCaliforniaCount(){
+  // The welcome tile reports the directory's actual California count, never a fixed number.
+  try{const data=await api('/sources?'+new URLSearchParams({state:'CA',limit:'1'}));$('#start-california-count').textContent=data.total?`Browse ${data.total.toLocaleString()} source records`:'No California sources loaded yet';}
+  catch{$('#start-california-count').textContent='Browse California source records';}
+}
 function draftStarterPrompt(prompt){
   const input=$('#chat-input');if(input.disabled)return;
   if(!input.value.includes(prompt))input.value=input.value.trim()?input.value.trim()+'\n\n'+prompt:prompt;
@@ -218,7 +223,7 @@ $('#remote-screen').onkeydown=e=>{if(state?.browser.controller!=='you'||e.key===
 $('#send-browser-text').onclick=()=>{const text=$('#browser-text').value;if(text){browserAction({kind:'type',text});$('#browser-text').value='';}};
 $('#browser-text').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#send-browser-text').click();}};
 $('#browser-enter').onclick=()=>browserAction({kind:'key',text:'Enter'});$('#browser-back').onclick=()=>browserAction({kind:'back'});$('#browser-reload').onclick=()=>browserAction({kind:'reload'});$('#browser-scroll-up').onclick=()=>browserAction({kind:'scroll',delta:-600});$('#browser-scroll-down').onclick=()=>browserAction({kind:'scroll',delta:600});
-await refresh();await companyProfile.load();await loadSources();setInterval(refresh,2500);setInterval(refreshFrame,1600);setInterval(()=>{if(!document.hidden&&!$('#profile-dialog').open)companyProfile.load();},10000);
+await refresh();await companyProfile.load();await loadSources();loadCaliforniaCount();setInterval(refresh,2500);setInterval(refreshFrame,1600);setInterval(()=>{if(!document.hidden&&!$('#profile-dialog').open)companyProfile.load();},10000);
 
 
 async function loadRFPs(){try{const data=await api('/rfps');rfpRows=data.rows;rfpStatuses=data.statuses;const filter=$('#rfp-status-filter'), selected=filter.value;filter.innerHTML='<option value="">All statuses</option>'+rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');filter.value=selected;if(!$('#rfp-status').options.length)$('#rfp-status').innerHTML=rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');renderRFPs();}catch(err){toast(err.message);}}
