@@ -15,7 +15,7 @@ Built for the Vultr Agent Arena Hackathon 2026 · Future of Work.
 
 [Capabilities and limitations](app/docs/capabilities.md) · [Testing](app/docs/testing.md) · [Decisions and next work](app/docs/decisions.md)
 
-These documents describe implementation baseline `393619c` (September 26, 2026). Source code remains authoritative; environment-specific receipts and credentials are not in Git.
+These documents describe implementation baseline `4140a21` (September 26, 2026). Source code remains authoritative; environment-specific receipts and credentials are not in Git.
 
 ## Run the app locally
 

@@ -1,6 +1,6 @@
 # Capabilities and boundaries
 
-Implementation baseline: `bab7378`. “Implemented” describes available code, not universal portal coverage or independently verified model output.
+Implementation baseline: `4140a21`. “Implemented” describes available code, not universal portal coverage or independently verified model output.
 
 | Area | Implemented behavior | Boundary |
 |---|---|---|

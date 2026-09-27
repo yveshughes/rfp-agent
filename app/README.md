@@ -1,6 +1,6 @@
 # Engineering handoff
 
-This is the starting point for maintaining Billy. Reviewed against implementation `bab7378`, September 26, 2026. The public technical page is a product explanation; these documents are the operational and engineering reference.
+This is the starting point for maintaining Billy. Reviewed against implementation `4140a21`, September 26, 2026. The public technical page is a product explanation; these documents are the operational and engineering reference.
 
 ## First hour
 
