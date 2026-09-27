@@ -1,4 +1,5 @@
 export const motions = {
+  autopilot: {name:'Autopilot', description:'Billy works through a response at his desk, ready to bring it back for your review.'},
   voice: {name:'On the phone', description:'Billy holds his corded desk phone during listening, transcription, and spoken replies.'},
   discussing: {name:'Discussing', description:'Billy is messaging with you and keeping track of the next steps.'},
   snoozing: {name:'Snoozing', description:'A little rest between tasks. Billy wakes when there’s work to do.'},
@@ -9,11 +10,12 @@ export const motions = {
 };
 
 // Visual state follows work, never a timer pretending to perform a task.
-export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null, chatOpen=false, agentActivity=null}={}) {
+export function resolveBillyMotion(state, {connected=true, documentRequests=0, discussionState=null, chatOpen=false, agentActivity=null,autopilotRunning=false}={}) {
   if (!connected || !state) return {motion:'idle',label:'Workspace disconnected',tone:'offline'};
   const browser=state.browser || {};
   if(browser.pending) return {motion:'waiting',label:'Waiting for your decision',tone:'attention'};
   if(browser.controller==='you') return {motion:'waiting',label:'You have the browser',tone:'handoff'};
+  if(autopilotRunning)return {motion:'autopilot',label:agentActivity==='reading'?'Reviewing the details for your response…':'Finding the fit. Preparing your response.',tone:'working'};
   if(documentRequests>0 || state.document_jobs>0) return {motion:'reading',label:'Reading and saving a document',tone:'working'};
   if(browser.busy) return {motion:'researching',label:browser.status || 'Researching a source',tone:'working'};
   if(agentActivity) return {motion:agentActivity,label:agentActivity==='reading'?'Reviewing document evidence':'Reviewing opportunities and sources',tone:'working'};
@@ -31,7 +33,7 @@ export function resolveAgentActivity(snapshot) {
   const currentSteps=(snapshot.steps||[]).filter(step=>!user||step.created>=user.created);
   for(const step of currentSteps.toReversed()){
     if(['read_document','inspect_rfp'].includes(step.tool))return 'reading';
-    if(['open_source','read_company_website','opportunities'].includes(step.tool))return 'researching';
+    if(['open_source','read_rfp_source','read_company_website','opportunities'].includes(step.tool))return 'researching';
   }
   if(user?.attachments?.length)return 'reading';
   return null;
@@ -41,7 +43,7 @@ export function resolveBillyPanel(state, options={}) {
   const motion=resolveBillyMotion(state,options);
   if(motion.motion==='idle')return 'work';
   if(options.connected!==false && state?.browser?.pending)return 'decisions';
-  if(['reading','researching'].includes(motion.motion) || (options.connected!==false && state?.browser?.controller==='you'))return 'work';
+  if(['autopilot','reading','researching'].includes(motion.motion) || (options.connected!==false && state?.browser?.controller==='you'))return 'work';
   if(options.chatOpen || options.discussionState)return 'discuss';
   return null;
 }
@@ -80,7 +82,7 @@ export function createBillyMotion() {
       profile.dataset.state=resolved.motion;
       profile.dataset.tone=tone;
       document.querySelector('#billy-status').textContent=resolved.label;
-      document.querySelector('#billy-state-label').textContent=motions[resolved.motion].name;
+      document.querySelector('#billy-state-label').textContent=options?.autopilotRunning&&resolved.motion!=='idle'?'Autopilot':motions[resolved.motion].name;
       document.querySelector('#status-dot').className='status-dot'+(tone!=='offline'?' connected':'')+(tone==='working'?' working':'');
       if(current!==resolved.motion){
         current=resolved.motion;
@@ -90,13 +92,14 @@ export function createBillyMotion() {
         const idle=current==='idle';
         desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;
         if(!idle&&!asleep&&!onPhone){
-        const asset=current==='discussing'?'researching':current;
+        const asset=['discussing','autopilot'].includes(current)?'researching':current;
         video.poster=`/assets/billy/${asset}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
         video.src=`/assets/billy/${asset}.mp4`;
         video.load();
         }
       }
+      video.playbackRate=resolved.motion==='autopilot'?1.8:1;
       sync();
       return resolved;
     }

@@ -1,8 +1,8 @@
 import {renderChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
-import {resolveAgentActivity} from './billy-motion.js?v=document-review-2';
+import {resolveAgentActivity} from './billy-motion.js?v=autopilot-1';
 import {renderChatOutcome} from './chat-cards.js?v=1';
 
-export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply}) {
+export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply,openReview}) {
   const $=s=>document.querySelector(s);
   const host=document.createElement('div');host.id='agent-conversation';host.className='conversation';$('#chat-scroll').append(host);
   let snapshot=null,polling=false,sending=false,signature='',lastStatus='',discussionReply=false;
@@ -28,7 +28,7 @@ export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,
     host.querySelectorAll('.chat-rfp-cover img').forEach(img=>{img.onerror=()=>{img.hidden=true;img.nextElementSibling.hidden=false;};});
     const footer=document.createElement('div');footer.className='agent-job';
     const selectedCardShown=messages.some(m=>m.outcome?.rfps?.some(r=>r.id===run.rfp_id));
-    footer.innerHTML=`<small>${esc(run.status==='running'?'Billy is working…':run.status==='waiting'?'Billy needs your input':run.status==='complete'?'Turn complete':'Work paused')}</small>${run.error?`<p>${esc(run.error)}</p><button id="agent-retry">Continue saved work ↗</button>`:''}${run.rfp_id&&!selectedCardShown?'<button id="agent-open-rfp">Open selected RFP ↗</button>':''}${run.status!=='running'?'<button id="agent-upload">Import previous response ↗</button>':''}`;
+    footer.innerHTML=`<small>${esc(run.status==='running'?'Billy is working…':run.status==='waiting'?'Billy needs your input':run.status==='complete'?'Turn complete':'Work paused')}</small>${run.error?`<p>${esc(run.error)}</p><button id="agent-retry">Continue saved work ↗</button>`:''}${run.rfp_id&&!selectedCardShown?'<button id="agent-open-rfp">Open selected RFP ↗</button>':''}${run.autopilot&&run.status==='running'?'<button id="agent-pause">Pause Autopilot</button>':''}${run.autopilot&&(snapshot.pdfs||[]).some(p=>p.rfp_id===run.rfp_id&&!p.stale)?'<button id="agent-review" class="primary">Review and submit ↗</button>':''}${run.status!=='running'?'<button id="agent-upload">Import previous response ↗</button>':''}`;
     host.append(footer);
     for(const pdf of (snapshot.pdfs||[]).filter(p=>p.rfp_id===run.rfp_id)){
       const card=document.createElement('a');card.className='agent-job';card.target='_blank';card.rel='noopener';
@@ -36,6 +36,8 @@ export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,
       card.innerHTML=`<strong>▤ ${esc(pdf.name)}</strong><small>${pdf.pages} pages · ${pdf.stale?'Earlier version — sections have changed':'Saved review copy'} · Open PDF ↗</small>`;
       host.append(card);
     }
+    if($('#agent-review'))$('#agent-review').onclick=()=>openReview(run.rfp_id);
+    if($('#agent-pause'))$('#agent-pause').onclick=async()=>{try{snapshot=await api('/agent/pause',{});render();}catch(e){toast(e.message);}};
     if($('#agent-open-rfp'))$('#agent-open-rfp').onclick=()=>openRFP(run.rfp_id);
     if($('#agent-upload'))$('#agent-upload').onclick=importDocument;
     if($('#agent-retry'))$('#agent-retry').onclick=async()=>{try{snapshot=await api('/agent/resume',{});render();}catch(e){toast(e.message);}};

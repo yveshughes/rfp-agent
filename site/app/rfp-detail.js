@@ -10,20 +10,22 @@ export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
     const count=getDocuments().filter(d=>d.rfp_id===id).length;
     $('#rfp-work-tabs').innerHTML=`<button role="tab" aria-selected="${tab==='files'}" data-rfp-tab="files" aria-controls="rfp-work-panel">RFP Files <span>(${count})</span></button>`+data.sections.map(s=>`<button role="tab" aria-selected="${tab===s.id}" data-rfp-tab="${s.id}" aria-controls="rfp-work-panel">${esc(s.title)} <span>(${s.progress}%)</span></button>`).join('');
     document.querySelectorAll('[data-rfp-tab]').forEach(b=>b.onclick=()=>{if(saving)return;noteDrafts.set(key(),$('#rfp-discussion-input').value);tab=b.dataset.rfpTab;render();});
-    $('#rfp-progress-label').textContent=`${data.progress}% complete`;
+    $('#rfp-progress-label').textContent=`${data.progress}% reviewed`;
     $('#rfp-progress-bar').value=data.progress;
-    $('#rfp-progress-detail').textContent=`${data.completed} of ${data.total} response checks`;
+    $('#rfp-progress-detail').textContent=`${data.completed} of ${data.total} review checks`;
   }
   function render(){
     if(!data)return;
     renderTabs();
+    $('#rfp-page-meta').textContent=[data.rfp.status,data.rfp.deadline?`Due ${data.rfp.deadline}`:''].filter(Boolean).join(' · ');
+    const hasFiles=getDocuments().some(d=>d.rfp_id===id);
     const files=tab==='files', s=part();
     $('#rfp-files-panel').hidden=!files;$('#rfp-response-panel').hidden=files;
     $('#rfp-work-panel').setAttribute('aria-label',files?'RFP Files':s.title);
     $('#rfp-discussion').hidden=true;$('#rfp-discussion-input').value=noteDrafts.get(key())||'';
     const needs=s?.checks.filter(c=>!c.done)||[];
-    $('#rfp-needs-title').textContent=files?'Billy needs the source documents.':needs.length?'Billy needs your input.':'This section’s checklist is complete.';
-    $('#rfp-needs-copy').textContent=files?'Save the RFP, attachments, and addenda here. Review the originals and note any missing or updated documents.':needs.length?needs.map(c=>c.text).join(' · '):'All checks are marked complete. You still review and approve the final response before submission.';
+    $('#rfp-needs-title').textContent=files?(hasFiles?'Source documents':'Billy needs the source documents.'):needs.length?'Billy needs your input.':'This section’s checklist is complete.';
+    $('#rfp-needs-copy').textContent=files?(hasFiles?'Review the saved originals and check for any missing attachments or addenda.':'Save the RFP, attachments, and addenda here so Billy can review the requirements.'):needs.length?needs.map(c=>c.text).join(' · '):'All checks are marked complete. You still review and approve the final response before submission.';
     renderNotes();
     if(files)return;
     const d=draft(), conflict=d.version!==s.version;

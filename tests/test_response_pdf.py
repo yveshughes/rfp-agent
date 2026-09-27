@@ -14,11 +14,15 @@ class ResponsePDFTests(unittest.IsolatedAsyncioTestCase):
             app=FastAPI()
             def db():
                 c=sqlite3.connect(Path(folder)/'test.sqlite3');c.row_factory=sqlite3.Row;return c
+            with db() as c:
+                c.execute('CREATE TABLE rfps(id TEXT PRIMARY KEY,status TEXT,updated REAL)')
+                c.execute("INSERT INTO rfps VALUES ('pdf-test','Drafting',0)")
             sections=[{'id':str(i),'title':'Section '+str(i),'body':'Evidence <quoted> & reviewed. [CONFIRM CURRENT RATES]','version':1} for i in range(1,4)]
             rfp={'title':'Review test'}
             async def workspace(_):return {'rfp':rfp,'sections':sections}
             export=register_response_pdf(app,db,Path(folder),workspace,lambda *args:None)
             first=await export('pdf-test')
+            with db() as c:self.assertEqual(c.execute("SELECT status FROM rfps WHERE id='pdf-test'").fetchone()[0],'Ready for review')
             self.assertEqual(first,await export('pdf-test'))
             original=(Path(folder)/'response-pdfs'/(first['id']+'.pdf')).read_bytes()
             extracted=''.join(p.extract_text() for p in PdfReader(io.BytesIO(original)).pages)

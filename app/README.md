@@ -134,3 +134,12 @@ Billy's opportunity search is paginated, searchable and ranked for the current c
 Completed agent replies include receipts derived from successful saved tool results, plus links to updated company profiles and selected/recommended RFPs. Cards stay with the original turn, including existing chat history. `recommend` attaches 1–4 candidates without pursuing them; `pursue` attaches the selected RFP automatically. Failed tools never create success receipts. Original reply text and private workspace boundaries are preserved.
 
 Saved original PDFs have a workspace-scoped `/api/documents/{id}/preview` endpoint. Poppler renders only page one at a maximum dimension of 720 pixels; the result is cached privately. Install `poppler-utils` on Ubuntu (included in `deploy/install-app.sh`) or `brew install poppler` on macOS. Rendering has a 15-second timeout and one job per workspace at a time. Missing PDFs or unavailable previews use agency/title cards; no invented logos or automatic source downloads.
+
+
+### Autopilot preparation
+
+Start Autopilot from RFPs to prepare one best-fit opportunity per run, or use Prepare with Autopilot inside a particular RFP. Billy reuses that workspace's company evidence, checks source documents and deadlines, saves cited requirements, drafts three response sections, and exports a review PDF without intermediate permission questions. Missing details remain explicit placeholders and review gaps. Source failures or no suitable opportunity are reported as blockers. Runs are bounded to 80 actions and the existing shared inference budget; Pause and Continue retain saved work. This is a user-started run, not an unattended recurring submission service.
+
+The first nonempty section moves Researching to Drafting. Exporting all three sections moves preparation to Ready for review. Editing a section invalidates its old PDF and moves Ready for review back to Drafting. Closed/responded states are never automatically reopened. Autopilot filters expired saved deadlines, exposes days remaining, and asks the model to prioritize fit and feasible preparation time; precise closing times and unknown dates still require final source review.
+
+Review and submit opens the PDF, response text, deadline, and unresolved requirements. The user confirms review before following the original source/submission instructions. No delivery integration is connected: this handoff does not submit, sign, email, purchase, or mark the RFP Responded.

@@ -556,7 +556,11 @@ from app.response_pdf import register_response_pdf
 export_response_pdf = register_response_pdf(app, db, DATA, rfp_workspace, event)
 from app.company_web import CompanyWebsite
 company_website = CompanyWebsite(db, b, public_url, event)
-agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website)
+from app.rfp_research import RFPResearch
+rfp_research = RFPResearch(db, DATA, fetch_pdf, store_pdf, require_rfp, event)
+from app.response_review import register_response_review
+response_review = register_response_review(app, db, rfp_workspace, DATA)
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website,rfp_research=rfp_research,review=response_review)
 
 async def watch_opportunities():
     while True:

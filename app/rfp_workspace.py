@@ -64,6 +64,8 @@ def register_rfp_workspace(app, db, require_rfp, event):
             old=c.execute('SELECT version FROM response_sections WHERE rfp_id=? AND section_id=?',(rfp_id,section_id)).fetchone()
             if req.version!=(old['version'] if old else 0): raise HTTPException(409,'This section changed in another session. Your draft is kept here; reopen the RFP to load the latest version before saving.')
             c.execute('INSERT OR REPLACE INTO response_sections VALUES (?,?,?,?,?,?,?)',(rfp_id,section_id,req.title.strip(),req.body,json.dumps([{'text':x.text.strip(),'done':x.done} for x in req.checks]),req.version+1,time.time()))
+            # Saving real response work advances preparation, never submission.
+            c.execute("UPDATE rfps SET status=CASE WHEN status='Ready for review' OR (status='Researching' AND ?!='') THEN 'Drafting' ELSE status END,updated=? WHERE id=?",(req.body.strip(),time.time(),rfp_id))
         event('done','Response section saved',req.title.strip())
         return await rfp_workspace(rfp_id)
 

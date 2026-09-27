@@ -2,6 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {resolveBillyMotion,createBillyMotion,resolveBillyPanel,resolveAgentActivity} from '../site/app/billy-motion.js';
 const ready={browser:{controller:'billy',busy:false,error:null,pending:null},document_jobs:0};
+test('Autopilot stays visibly working between tools and keeps Activity open',()=>{
+  for(const agentActivity of [null,'reading','researching']){
+    const options={autopilotRunning:true,agentActivity,chatOpen:false};
+    assert.equal(resolveBillyMotion(ready,options).motion,'autopilot');
+    assert.equal(resolveBillyPanel(ready,options),'work');
+  }
+  assert.equal(resolveBillyMotion(ready,{autopilotRunning:false}).motion,'snoozing');
+  assert.equal(resolveBillyMotion(ready,{autopilotRunning:true,connected:false}).motion,'idle');
+});
 test('activity wakes Billy from snoozing for research and documents',()=>{
   assert.equal(resolveBillyMotion(ready).motion,'snoozing');
   assert.equal(resolveBillyMotion({...ready,browser:{...ready.browser,busy:true,status:'Reading the page'}}).motion,'researching');
@@ -44,8 +53,15 @@ test('explicit pause survives activity, visibility and OS preference changes',()
     assert.equal(nodes['#billy-idle-desk'].hidden,true);
     assert.equal(button.hidden,false);
     assert.ok(plays>0);
+    motion.update(ready,{autopilotRunning:true});
+    assert.equal(video.playbackRate,1.8);
+    assert.equal(video.src,'/assets/billy/researching.mp4');
+    assert.equal(nodes['#billy-state-label'].textContent,'Autopilot');
+    assert.equal(nodes['#billy-snooze'].hidden,true);
     button.onclick();assert.equal(preference,'off');const before=plays;
+    motion.update(ready,{autopilotRunning:true});assert.equal(plays,before);
     motion.update({...ready,document_jobs:1});
+    assert.equal(video.playbackRate,1);
     reduced.matches=true;listeners.motion();reduced.matches=false;listeners.motion();
     document.hidden=true;listeners.visibilitychange();document.hidden=false;listeners.visibilitychange();
     assert.equal(plays,before);

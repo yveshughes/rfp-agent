@@ -63,6 +63,8 @@ def register_response_pdf(app,db,data,workspace,event):
             (folder/(digest+'.pdf')).write_bytes(raw)
             with db() as c:c.execute('INSERT INTO response_pdfs VALUES (?,?,?,?,?,?,?)',(digest,rfp_id,'Response - review copy.pdf',json.dumps(versions),pages,time.time(),title))
             event('done','Response PDF ready for review',f'{pages} pages; review required before any submission.')
+        with db() as c:
+            c.execute("UPDATE rfps SET status='Ready for review',updated=? WHERE id=? AND status IN ('Researching','Drafting')",(time.time(),rfp_id))
         return {'id':digest,'rfp_id':rfp_id,'name':'Response - review copy.pdf','pages':pages,'versions':versions,
                 'url':'/api/response-pdfs/'+digest,'review_required':True,
                 'note':'Check page limits, placeholders, signatures and required attachments. This PDF has not been submitted.'}
