@@ -32,7 +32,7 @@ Implementation baseline: `bab7378`. “Implemented” describes available code, 
 6. A selected RFP blocked by inaccessible requirements is retained with its reason and skipped for this queue. Ready-for-review and already-handled items are excluded. A blocker affecting all work, no suitable candidates, a budget failure or unrecoverable execution error stops the queue.
 7. Pause cancels the one queue task. Continue preserves selection and handled items. A service restart preserves progress but requires explicit Continue. Global Continue can upgrade an interrupted single-response job to continuous mode.
 
-The 80-action bound applies to **each item**, not the whole queue. The shared inference budget still caps estimated total usage. Each new Start creates a new queue session; blocked items can be reconsidered in a later session. A separate source watcher continues discovering opportunities; it does not wake a completed queue.
+The 80-action bound applies to **each item**, not the whole queue. The shared inference budget still caps estimated total usage. Each new Start creates a new queue session; blocked items can be reconsidered in a later session. A separate source watcher continues discovering opportunities; it does not wake a completed queue. The finished summary can be dismissed and reopened with View last summary. Dismissal is stored in this browser per company and completion version; a new completion shows its summary again. Dismissal does not clear saved work or start/stop Billy.
 
 ## Lifecycle meaning
 

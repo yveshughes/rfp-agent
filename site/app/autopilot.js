@@ -1,16 +1,24 @@
-export function createAutopilot({api,esc,toast,resourceURL,onChange}){
+export function createAutopilot({api,esc,toast,resourceURL,onChange,storageKey}){
   const $=s=>document.querySelector(s);
   let lastRunHTML='',lastTargetHTML='';
   let snapshot=null,rfp=null,busy=false,loading=false,last=0,reviewId=null;
   const reviews=new Map();
+  const dismissedKey=storageKey('autopilot-dismissed-summary');
+  let dismissedSummary='';
+  try{dismissedSummary=localStorage.getItem(dismissedKey)||'';}catch{}
+  const summaryId=run=>`${run?.id}:${run?.updated}`;
+  function dismissSummary(value){dismissedSummary=value;try{if(value)localStorage.setItem(dismissedKey,value);else localStorage.removeItem(dismissedKey);}catch{}render();}
   function render(){
     const run=snapshot?.run,working=run?.status==='running',automatic=!!run?.autopilot;
+    const finished=automatic&&run?.continuous&&run?.status==='complete'&&!run?.rfp_id;
+    const dismissed=finished&&dismissedSummary===summaryId(run);
     const status=working&&automatic?'Preparing your next response':automatic&&run?.status==='paused'?'Autopilot paused':automatic&&run?.continuous&&run?.status==='complete'&&!run?.rfp_id?'Autopilot finished':automatic&&run?.blocked_reason?'Needs attention':'Autopilot';
-    const runHTML=`<div><strong>${status}</strong><p>Finds and prepares suitable RFPs, one after another.</p><small>Prioritizes fit and deadlines. Follow each response in My RFPs, and pause anytime.</small>${automatic&&run?.continuous&&run.queue_items?.length?`<p>${run.queue_items.filter(i=>i.status==='ready').length} ready for review · ${run.queue_items.filter(i=>i.status==='blocked').length} need attention</p>`:''}${automatic&&run?.blocked_reason?`<p>${esc(run.blocked_reason)}</p>`:''}${automatic&&run?.continuous&&run.queue_items?.some(i=>i.status==='blocked')?`<details><summary>Responses needing attention</summary>${run.queue_items.filter(i=>i.status==='blocked').map(i=>`<p><strong>${esc(i.title)}</strong><br>${esc(i.reason)}</p>`).join('')}</details>`:''}</div><div class="autopilot-actions">${working?`<button data-autopilot-pause ${busy?'disabled':''}>Pause Billy</button>`:`<button class="primary" data-autopilot-start ${busy||!snapshot?.config?.configured?'disabled':''}>${automatic&&['paused','error','interrupted'].includes(run?.status)?'Continue Autopilot':'Start Autopilot'}</button>`}${run?.rfp_id&&reviews.get(run.rfp_id)?.ready?`<button data-response-review="${esc(run.rfp_id)}">Review and submit ↗</button>`:''}</div>`;
+    const runHTML=`<div>${dismissed?'<strong>Autopilot</strong>':`<strong>${status}</strong><p>Finds and prepares suitable RFPs, one after another.</p><small>Prioritizes fit and deadlines. Follow each response in My RFPs, and pause anytime.</small>${automatic&&run?.continuous&&run.queue_items?.length?`<p>${run.queue_items.filter(i=>i.status==='ready').length} ready for review · ${run.queue_items.filter(i=>i.status==='blocked').length} need attention</p>`:''}${automatic&&run?.blocked_reason?`<p>${esc(run.blocked_reason)}</p>`:''}${automatic&&run?.continuous&&run.queue_items?.some(i=>i.status==='blocked')?`<details><summary>Responses needing attention</summary>${run.queue_items.filter(i=>i.status==='blocked').map(i=>`<p><strong>${esc(i.title)}</strong><br>${esc(i.reason)}</p>`).join('')}</details>`:''}`}</div><div class="autopilot-actions">${finished?`<button data-autopilot-summary>${dismissed?'View last summary':'Dismiss'}</button>`:''}${working?`<button data-autopilot-pause ${busy?'disabled':''}>Pause Billy</button>`:`<button class="primary" data-autopilot-start ${busy||!snapshot?.config?.configured?'disabled':''}>${automatic&&['paused','error','interrupted'].includes(run?.status)?'Continue Autopilot':'Start Autopilot'}</button>`}${run?.rfp_id&&reviews.get(run.rfp_id)?.ready?`<button data-response-review="${esc(run.rfp_id)}">Review and submit ↗</button>`:''}</div>`;
     if(lastRunHTML!==runHTML){$('#autopilot-run').innerHTML=runHTML;lastRunHTML=runHTML;}
     $('#rfp-autopilot-controls').hidden=!rfp;
     const targetHTML=rfp?`<button data-autopilot-target ${working||busy||!snapshot?.config?.configured?'disabled':''}>Prepare with Autopilot</button>${reviews.get(rfp.id)?.ready?`<button class="primary" data-response-review="${esc(rfp.id)}">Review and submit ↗</button>`:''}`:'';
     if(lastTargetHTML!==targetHTML){$('#rfp-autopilot-controls').innerHTML=targetHTML;lastTargetHTML=targetHTML;}
+    document.querySelectorAll('[data-autopilot-summary]').forEach(b=>b.onclick=()=>dismissSummary(dismissed?'':summaryId(run)));
     document.querySelectorAll('[data-autopilot-start]').forEach(b=>b.onclick=()=>start());
     document.querySelectorAll('[data-autopilot-target]').forEach(b=>b.onclick=()=>start(rfp));
     document.querySelectorAll('[data-autopilot-pause]').forEach(b=>b.onclick=()=>pause());

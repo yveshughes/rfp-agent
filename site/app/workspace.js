@@ -1,4 +1,4 @@
-import {createAutopilot} from './autopilot.js?v=autopilot-queue-1';
+import {createAutopilot} from './autopilot.js?v=dismiss-summary-1';
 import {createDiscussionAgenda} from './discussion-agenda.js?v=friendly-topics-1';
 import {createDocumentReview} from './document-review.js?v=1';
 import {createChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
@@ -64,7 +64,7 @@ let chatSuggestions,autopilot;
 const documentReview=createDocumentReview({esc,resourceURL:path=>API+path,openDocument,openBrowser:expandBrowser});
 let reviewSnapshot=null;
 const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
-autopilot=createAutopilot({api,esc,toast,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
+autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
