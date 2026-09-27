@@ -51,7 +51,7 @@ This is a schema example, not a functioning procurement source. Keep IDs stable:
 
 ## Configuration reference
 
-All secrets belong in the server environment, never frontend JavaScript or version control. The app does not automatically load `.env` files.
+All secrets belong in the server environment, never frontend JavaScript or version control. The app does not automatically load `.env` files; a root `.env` is ignored by Git and is only sourced by your own launch command.
 
 | Variable | Default / meaning |
 |---|---|
@@ -65,6 +65,8 @@ All secrets belong in the server environment, never frontend JavaScript or versi
 | `BILLY_INFERENCE_BUDGET_USD` | `100`; shared cumulative estimated usage/reservations, not a billing subscription or daily reset |
 | `PLAYWRIGHT_BROWSERS_PATH` | Playwright default locally; `/opt/billy-browsers` on the VM |
 | `META_API_KEY` / `MODEL_API_KEY` | Optional Meta transcription key for push-to-talk; first takes precedence |
+| `GEMINI_API_KEY` | No default; enables live voice by letting the server mint Gemini Live session tokens |
+| `BILLY_GEMINI_LIVE_MODEL` | `gemini-3.8-live`; Live API model locked into each voice token |
 
 The main model endpoint is configured in `agent.py` as `https://api.vultrinference.com/v1`. The current estimator hard-codes $0.75 input / $3 output per million tokens as implementation assumptions. Do not treat this table as current provider pricing. Revalidate estimator/model compatibility before changing models; the budget is not an account-wide billing guarantee.
 
