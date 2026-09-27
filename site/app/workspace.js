@@ -1,10 +1,11 @@
+import {createChatAttachments} from './chat-attachments.js?v=1';
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
-import {createAgentChat} from './agent-chat.js?v=outcome-cards-1';
+import {createAgentChat} from './agent-chat.js?v=company-attachments-1';
 import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities-1';
 import {createDiscussion} from './discuss.js?v=action-loop-1';
 import {createRFPDetail} from './rfp-detail.js?v=navigation-1';
-import {createCompanyProfile} from './company.js?v=profile-colors-1';
+import {createCompanyProfile} from './company.js?v=company-attachments-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=idle-discussion-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -56,14 +57,15 @@ const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:(
 const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
 const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();}});
 let chatSuggestions;
-const agentChat=createAgentChat({api,esc,toast,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();chatSuggestions?.update();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity)=>{agentState=value;agentActivity=activity;updateBillyMotion();chatSuggestions?.update();},onSaved:async()=>{await companyProfile.load();await loadRFPs();},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const chatAttachments=createChatAttachments({api,esc,toast,onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
   if(data instanceof FormData) opts.body=data;
   else if(data!==undefined){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(data);}
-  const reading=data!==undefined && (path==='/documents' || /^\/rfps\/[^/]+\/documents\/download$/.test(path));
+  const reading=data!==undefined && (path==='/documents' || path==='/company/attachments' || /^\/rfps\/[^/]+\/documents\/download$/.test(path));
   if(reading){documentRequests++;updateBillyMotion();}
   try {
   const response=await fetch(API+'/api'+path,opts);
@@ -99,17 +101,25 @@ function addMessage(text, user=false, buttons=[]) {
   sessionStorage.setItem(storageKey('chat-text'),JSON.stringify([...$('#conversation').children].map(el=>({user:el.classList.contains('user'),text:el.querySelector('div')?.textContent}))));
 }
 try { const messages=JSON.parse(sessionStorage.getItem(storageKey('chat-text'))||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
-async function sendContextualMessage(text,context={}) {
-  const sent=await agentChat.send(text,context);
+async function sendContextualMessage(text,context={},documents=[]) {
+  const sent=await agentChat.send(text,context,documents);
   if(sent){$('#company-chat-exit').click();await agentChat.poll();}
   return sent;
 }
 $('#chat-form').onsubmit=async e=>{
-  e.preventDefault();const input=$('#chat-input').value.trim();if(!input)return;
-  if(companyProfile.hasChat()){if(await sendContextualMessage(input,{field:companyProfile.chatContext(),source:'company'}))$('#chat-input').value='';chatSuggestions.update();return;}
-  if(await agentChat.send(input))$('#chat-input').value='';
-  chatSuggestions.update();
+  e.preventDefault();const form=$('#chat-form'),input=$('#chat-input').value.trim();
+  if(form.dataset.uploading==='true'||(!input&&!chatAttachments.hasFiles()))return;
+  if(agentChat.getSnapshot()?.run?.status==='running'){toast('Billy is working. Wait for his next question.');return;}
+  form.dataset.uploading='true';$('#chat-input').disabled=true;form.querySelector('button[type="submit"]').disabled=true;chatAttachments.setBusy(true);
+  try{
+    const documents=chatAttachments.hasFiles()?await chatAttachments.upload():[];
+    const text=input||'Use these attachments to update my company profile with supported details.';
+    const sent=companyProfile.hasChat()?await sendContextualMessage(text,{field:companyProfile.chatContext(),source:'company'},documents):await agentChat.send(text,undefined,documents);
+    if(sent){$('#chat-input').value='';chatAttachments.clear();}
+  }catch(error){toast(error.message);}
+  finally{form.dataset.uploading='false';$('#chat-input').disabled=false;chatAttachments.setBusy(false);form.querySelector('button[type="submit"]').disabled=agentChat.getSnapshot()?.run?.status==='running';chatSuggestions.update();}
 };
+$('#company-attach-files').onclick=()=>{showView('chats');$('#chat-files').click();$('#chat-input').focus();};
 $('#chat-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('#chat-form').requestSubmit();}};
 const selectedStates=new Set();
 function updateStateFilter(){
@@ -158,13 +168,20 @@ async function startResearch(request,label){
   try{await api('/research',request);addMessage(`Review ${label}`,true);addMessage('Opening the source now. You can watch the page in my browser, or expand it to take over once it has loaded.');showView('chats');await refresh();}catch(err){toast(err.message);}
 }
 
-function renderDocuments(){const docs=(state?.documents||[]).filter(d=>!d.rfp_id);$('#documents').innerHTML=docs.map(d=>`<article class="document-card"><h3>${esc(d.name)}</h3><p>Original PDF pages ${d.first_page}–${d.last_page} · imported ${esc(date(d.added))}</p><button data-document="${d.id}">Review extracted pages ↗</button></article>`).join('');bindDocuments();}
+function documentKind(d){return !d.media_type||d.media_type==='application/pdf'?'PDF':d.media_type.startsWith('image/')?'Image':d.media_type.includes('wordprocessingml')?'Word document':'Text document';}
+function renderDocuments(){const docs=(state?.documents||[]).filter(d=>!d.rfp_id);$('#documents').innerHTML=docs.map(d=>`<article class="document-card"><h3>${esc(d.name)}</h3><p>${documentKind(d)} · saved ${esc(date(d.added))}</p><button data-document="${d.id}">Open document ↗</button></article>`).join('');bindDocuments();}
 function bindDocuments(){document.querySelectorAll('[data-document]').forEach(btn=>btn.onclick=()=>openDocument(btn.dataset.document));}
-async function openDocument(id,page=null){try{const doc=await api('/documents/'+id);$('#document-title').textContent=doc.name;$('#document-pages').innerHTML=`<div class="document-actions"><a href="${API}/api/documents/${doc.id}/pdf${page?`#page=${page}`:''}" target="_blank" rel="noopener">Review original${page?` · page ${page}`:''} ↗</a><a href="${API}/api/documents/${doc.id}/pdf?download=true">Download original ↓</a></div><p class="muted">Extracted pages ${doc.first_page}–${doc.last_page}${doc.total_pages?` of ${doc.total_pages}`:''}. The complete original is retained.</p>`+doc.pages.map(p=>`<section class="pdf-page"><a href="${API}/api/documents/${doc.id}/pdf#page=${p.page}" target="_blank" rel="noopener noreferrer">Original PDF · page ${p.page} ↗</a><pre>${esc(p.text||'No extractable text on this page. Open the original PDF to inspect it.')}</pre></section>`).join('');$('#document-dialog').showModal();}catch(err){toast(err.message);}}
+async function openDocument(id,page=null){try{
+  const doc=await api('/documents/'+id),pdf=documentKind(doc)==='PDF',image=doc.media_type?.startsWith('image/');
+  const original=API+'/api/documents/'+encodeURIComponent(doc.id)+'/file';
+  $('#document-title').textContent=doc.name;
+  $('#document-pages').innerHTML=`<div class="document-actions"><a href="${original}${pdf&&page?`#page=${page}`:''}" target="_blank" rel="noopener">Open original ↗</a><a href="${original}?download=true">Download original ↓</a></div><p class="muted">${esc(doc.extraction_note||(pdf?`Extracted pages ${doc.first_page}–${doc.last_page}. The complete original is retained.`:'The complete original is retained.'))}</p>${image?`<img class="document-image" src="${original}" alt="${esc(doc.name)}">`:''}`+doc.pages.map(p=>`<section class="pdf-page">${pdf?`<a href="${original}#page=${p.page}" target="_blank" rel="noopener noreferrer">Original PDF · page ${p.page} ↗</a>`:`<strong>${image?'Recognized image text':'Text excerpt '+p.page}</strong>`}<pre>${esc(p.text||'No readable text found. Open the original to review it.')}</pre></section>`).join('');
+  $('#document-dialog').showModal();
+}catch(err){toast(err.message);}}
 $('#close-document').onclick=()=>$('#document-dialog').close();
 $('#proposal-file').onchange=()=>{$('#file-name').textContent=$('#proposal-file').files[0]?.name||'Up to 25 MB · up to 100 pages';};
 $('#import-form').onsubmit=async e=>{e.preventDefault();const file=$('#proposal-file').files[0];if(!file)return;const data=new FormData();data.append('file',file);data.append('first_page',$('#first-page').value||'1');data.append('last_page',$('#last-page').value||'0');$('#import-submit').disabled=true;$('#import-submit').textContent='Extracting pages…';try{const result=await api('/documents',data);await refresh();renderDocuments();if(agentChat.hasRun()){await agentChat.send(`Use the previous response I just uploaded: document ${result.id}. Read its extracted pages, identify reusable evidence, and compare it with the selected RFP.`);showView('chats');}toast(`Imported ${result.pages} pages. Original page references preserved.`);}catch(err){toast(err.message);}finally{$('#import-submit').disabled=false;$('#import-submit').textContent='Save document ↗';}};
-async function renderArtifacts(){let pdfs=[];try{pdfs=await api('/response-pdfs');}catch{}let html=pdfs.map(p=>`<article class="document-card"><span class="eyebrow">RESPONSE PDF</span><h3>${esc(p.name)}</h3><p>${p.pages} pages · ${p.stale?'Earlier version; sections have changed':'Saved review copy'}</p><a href="${esc(API+'/api/response-pdfs/'+encodeURIComponent(p.id))}" target="_blank" rel="noopener">Open PDF ↗</a></article>`).join('')+(state?.documents||[]).map(d=>`<article class="document-card"><span class="eyebrow">${d.rfp_id?'RFP ORIGINAL':'IMPORTED RESPONSE'}</span><h3>${esc(d.name)}</h3><p>PDF pages ${d.first_page}–${d.last_page}. Extracted text and original file.</p><button data-document="${d.id}">Open pages ↗</button></article>`).join('');if(state?.research)html+=`<article class="research-card"><span class="eyebrow">SAVED RESEARCH</span><h3>${esc(state.research.title)}</h3><p>Captured ${esc(date(state.research.checked))} at ${esc(when(state.research.checked))}</p><button id="artifact-research">Open research ↗</button></article>`;$('#artifact-list').innerHTML=html||'<div class="empty-state">Your work will collect here. Import a response or read an RFP source to create your first artifact.</div>';bindDocuments();if($('#artifact-research'))$('#artifact-research').onclick=()=>{const r=state.research;$('#document-title').textContent=r.title;$('#document-pages').innerHTML=`<p><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a></p><pre style="white-space:pre-wrap">${esc(r.text)}</pre>`;$('#document-dialog').showModal();};}
+async function renderArtifacts(){let pdfs=[];try{pdfs=await api('/response-pdfs');}catch{}let html=pdfs.map(p=>`<article class="document-card"><span class="eyebrow">RESPONSE PDF</span><h3>${esc(p.name)}</h3><p>${p.pages} pages · ${p.stale?'Earlier version; sections have changed':'Saved review copy'}</p><a href="${esc(API+'/api/response-pdfs/'+encodeURIComponent(p.id))}" target="_blank" rel="noopener">Open PDF ↗</a></article>`).join('')+(state?.documents||[]).map(d=>`<article class="document-card"><span class="eyebrow">${d.rfp_id?'RFP ORIGINAL':'COMPANY DOCUMENT'}</span><h3>${esc(d.name)}</h3><p>${documentKind(d)} · Original file and readable text.</p><button data-document="${d.id}">Open document ↗</button></article>`).join('');if(state?.research)html+=`<article class="research-card"><span class="eyebrow">SAVED RESEARCH</span><h3>${esc(state.research.title)}</h3><p>Captured ${esc(date(state.research.checked))} at ${esc(when(state.research.checked))}</p><button id="artifact-research">Open research ↗</button></article>`;$('#artifact-list').innerHTML=html||'<div class="empty-state">Your work will collect here. Import a response or read an RFP source to create your first artifact.</div>';bindDocuments();if($('#artifact-research'))$('#artifact-research').onclick=()=>{const r=state.research;$('#document-title').textContent=r.title;$('#document-pages').innerHTML=`<p><a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">Open source ↗</a></p><pre style="white-space:pre-wrap">${esc(r.text)}</pre>`;$('#document-dialog').showModal();};}
 function approvalHTML(p){return `<article class="decision-card"><strong>${esc(p.title)}</strong><p>${esc(p.detail)}</p><p>${esc(p.url)}</p><div class="decision-actions"><button class="approve" data-approve="true">${p.kind==='form'?'Submit form':'Allow once'}</button><button data-approve="false">Decline</button></div></article>`;}
 function renderDecisions(){const pending=state?.browser.pending;$('#decision-count').textContent=pending?'1':'';$('#pending-decisions').innerHTML=pending?approvalHTML(pending):'<div class="empty-state">Nothing waiting on you.<br>Billy will pause here before sending or submitting.</div>';$('#dialog-approval').innerHTML=pending?approvalHTML(pending):'';document.querySelectorAll('[data-approve]').forEach(btn=>btn.onclick=async()=>{try{await api('/browser/approval',{id:pending.id,approved:btn.dataset.approve==='true'});await refresh();toast(btn.dataset.approve==='true'?'Approved once. Repeat the intended action within 30 seconds.':'Action declined.');}catch(err){toast(err.message);}});const approvals=(state?.events||[]).filter(e=>e.kind==='approval');$('#approval-history').innerHTML=approvals.length?approvals.map(e=>`<div class="history-item"><strong>${esc(e.title)}</strong>${esc(e.detail)}<br>${esc(when(e.at))}</div>`).join(''):'<div class="empty-state">Your approvals will be recorded here.</div>';}
 async function refresh(){try{const next=await api('/state');state=next;workspaceConnected=true;updateBillyMotion();$('#connection-notice').hidden=true;$('#vm-label').textContent=next.environment;$('#environment-setting').textContent=next.environment+' · browser, saved research and document storage';$('#backend-status').textContent='Connected';$('#indexed-count').textContent=`${next.total.toLocaleString()} sources indexed`;

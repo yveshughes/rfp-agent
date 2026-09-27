@@ -3,7 +3,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv poppler-utils
+DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv poppler-utils tesseract-ocr
 id billy >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/billy --shell /usr/sbin/nologin billy
 python3 -m venv /opt/rfp-agent/.venv
 /opt/rfp-agent/.venv/bin/pip install -r app/requirements.txt

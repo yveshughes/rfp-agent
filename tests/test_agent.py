@@ -13,7 +13,7 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await server.agent.close()
         with server.db() as c:
-            for table in ('agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages','company_tasks'):
+            for table in ('agent_message_documents','agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages','company_tasks'):
                 c.execute('DELETE FROM '+table)
         self.env=patch.dict(os.environ,{'VULTR_SERVERLESS_INFERENCE_API_KEY':'test-only','BILLY_VULTR_MODEL':'test-model'})
         self.env.start();self.addCleanup(self.env.stop)
@@ -22,6 +22,25 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.review_patch.start();self.addCleanup(self.review_patch.stop)
 
     async def asyncTearDown(self):await server.agent.close()
+
+    async def test_company_attachments_persist_and_unknown_ids_are_rejected(self):
+        import io
+        from fastapi import UploadFile
+        doc=await server.company_attachment(UploadFile(filename='services.txt',file=io.BytesIO(b'Lighting and electrical installation.')))
+        action=AgentAction(tool='ask',arguments={'message':'I saved your file. Which detail should I review?'})
+        with patch('app.agent.complete',return_value=(action,'test-model',{})):
+            await server.agent.message(AgentTurn(text='Update our profile',document_ids=[doc['id']],request_id='attach'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['messages'][0]['attachments'][0]['id'],doc['id'])
+        self.assertEqual(snap['messages'][0]['attachments'][0]['name'],'services.txt')
+        self.assertTrue(all(m['role']!='context' for m in snap['messages']))
+        with server.db() as c:
+            context=c.execute("SELECT text FROM agent_messages WHERE role='context'").fetchone()[0]
+            self.assertIn('untrusted evidence',context)
+        with self.assertRaises(HTTPException) as error:
+            await server.agent.message(AgentTurn(text='Read this',document_ids=['unknown'],request_id='invalid-attach'))
+        self.assertEqual(error.exception.status_code,404)
 
     async def test_profile_receipt_and_recommendation_cards_persist_without_pursuing(self):
         rfp=(await server.create_rfp(server.RFPInput(title='Lighting upgrade',agency='Test city')))['id']

@@ -68,6 +68,19 @@ class CompanyWorkspacesTests(unittest.IsolatedAsyncioTestCase):
         with rb.db() as c:
             self.assertEqual(c.execute('SELECT count(*) FROM agent_messages').fetchone()[0],0)
 
+    async def test_chat_attachments_remain_in_their_company(self):
+        a,b=await self.create('Attachment A'),await self.create('Attachment B')
+        response=await self.client.post('/w/'+a+'/api/company/attachments',files={'file':('company.txt',b'Our private capabilities','text/plain')})
+        self.assertEqual(response.status_code,200,response.text);doc=response.json()['id']
+        original=await self.client.get('/w/'+a+'/api/documents/'+doc+'/file')
+        self.assertEqual(original.content,b'Our private capabilities')
+        for suffix in ['', '/file','/preview']:
+            response=await self.client.get('/w/'+b+'/api/documents/'+doc+suffix)
+            self.assertEqual(response.status_code,404)
+        with patch.dict('os.environ',{'VULTR_SERVERLESS_INFERENCE_API_KEY':'test-only','BILLY_VULTR_MODEL':'test-model'}):
+            response=await self.client.post('/w/'+b+'/api/agent/message',json={'text':'Read it','document_ids':[doc],'request_id':'foreign'})
+            self.assertEqual(response.status_code,404,response.text)
+
     async def test_budget_is_shared_and_new_companies_do_not_reset_it(self):
         a, b = await self.create('Budget A'), await self.create('Budget B')
         await self.directory.runtime(a);await self.directory.runtime(b)

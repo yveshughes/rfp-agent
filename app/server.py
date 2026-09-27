@@ -55,7 +55,7 @@ with db() as c:
     CREATE TABLE IF NOT EXISTS watches(source_id INTEGER PRIMARY KEY, added REAL);
     CREATE TABLE IF NOT EXISTS rfps(id TEXT PRIMARY KEY, title TEXT, agency TEXT, url TEXT, status TEXT, deadline TEXT, notes TEXT, created REAL, updated REAL);''')
     columns = {r['name'] for r in c.execute('PRAGMA table_info(documents)')}
-    for name, definition in {'rfp_id':'TEXT', 'source_url':'TEXT', 'sha256':'TEXT', 'total_pages':'INTEGER'}.items():
+    for name, definition in {'rfp_id':'TEXT', 'source_url':'TEXT', 'sha256':'TEXT', 'total_pages':'INTEGER', 'media_type':"TEXT DEFAULT 'application/pdf'", 'file_ext':"TEXT DEFAULT '.pdf'", 'extraction_note':"TEXT DEFAULT ''"}.items():
         if name not in columns: c.execute(f'ALTER TABLE documents ADD COLUMN {name} {definition}')
 
 def save(key, value):
@@ -266,7 +266,7 @@ async def local_access(request: Request, call_next):
 async def state():
     with db() as c:
         events = [dict(r) for r in c.execute('SELECT * FROM events ORDER BY id DESC LIMIT 24')]
-        docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added,rfp_id,source_url,total_pages FROM documents ORDER BY added DESC')]
+        docs = [dict(r) for r in c.execute('SELECT id,name,first_page,last_page,added,rfp_id,source_url,total_pages,media_type,extraction_note FROM documents ORDER BY added DESC')]
     return {'environment':ENVIRONMENT,'document_jobs':document_jobs,'browser':{'ready':bool(b.page),'url':b.page.url if b.page else None,'controller':b.controller,'busy':b.busy,'status':b.status,'error':b.error,'pending':b.pending},'events':events,'documents':docs,'research':read('research'),'total':len(SOURCES),'policy':{'draft_forms':True,'submission':'approval_required'},'model':None}
 
 @app.get('/api/sources')
@@ -526,6 +526,8 @@ async def document_pdf(doc_id: str, download: bool=False):
 
 from app.document_previews import register_document_previews
 document_preview = register_document_previews(app, db, DATA)
+from app.company_attachments import register_company_attachments
+company_attachment, original_document = register_company_attachments(app, db, DATA, store_pdf, event, document_work)
 
 from app.company import register_company
 company_profile, company_chat, company_evidence, company_task = register_company(app, db, event)
