@@ -51,7 +51,7 @@ This is a schema example, not a functioning procurement source. Keep IDs stable:
 
 ## Configuration reference
 
-All secrets belong in the server environment, never frontend JavaScript or version control. The app does not automatically load `.env` files; a root `.env` is ignored by Git and is only sourced by your own launch command.
+All secrets belong in the server environment, never frontend JavaScript or version control. The app does not automatically load `.env` files; keep local secret files under the ignored private folder and source them from your own launch command.
 
 | Variable | Default / meaning |
 |---|---|
