@@ -269,7 +269,7 @@ $('#remote-screen').onkeydown=e=>{if(state?.browser.controller!=='you'||e.key===
 $('#send-browser-text').onclick=()=>{const text=$('#browser-text').value;if(text){browserAction({kind:'type',text});$('#browser-text').value='';}};
 $('#browser-text').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#send-browser-text').click();}};
 $('#browser-enter').onclick=()=>browserAction({kind:'key',text:'Enter'});$('#browser-back').onclick=()=>browserAction({kind:'back'});$('#browser-reload').onclick=()=>browserAction({kind:'reload'});$('#browser-scroll-up').onclick=()=>browserAction({kind:'scroll',delta:-600});$('#browser-scroll-down').onclick=()=>browserAction({kind:'scroll',delta:600});
-await refresh();await companyProfile.load();await loadSources();loadCaliforniaCount();api('/tour',{}).catch(()=>{});   // Billy reviews the watched listings in his browser while the workspace is idlesetInterval(refresh,2500);setInterval(refreshFrame,1600);setInterval(()=>{if(!document.hidden&&!$('#profile-dialog').open)companyProfile.load();},10000);
+await refresh();await companyProfile.load();await loadSources();loadCaliforniaCount();setInterval(refresh,2500);setInterval(refreshFrame,1600);setInterval(()=>{if(!document.hidden&&!$('#profile-dialog').open)companyProfile.load();},10000);
 
 
 async function loadRFPs(){try{const data=await api('/rfps');rfpRows=data.rows;rfpStatuses=data.statuses;const filter=$('#rfp-status-filter'), selected=filter.value;filter.innerHTML='<option value="">All statuses</option>'+rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');filter.value=selected;if(!$('#rfp-status').options.length)$('#rfp-status').innerHTML=rfpStatuses.map(s=>`<option>${esc(s)}</option>`).join('');renderRFPs();}catch(err){toast(err.message);}}

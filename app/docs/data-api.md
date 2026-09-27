@@ -55,7 +55,7 @@ All paths below start at the selected workspace API unless marked global.
 | Registry (global) | `GET/POST /api/workspaces` |
 | Snapshot | `GET /state`, `GET /agent` |
 | Sources | `GET /sources?q=&state=CA,NV&offset=&limit=&watched=`, `POST /sources/{id}/watch` |
-| Source scan/feed | `POST /research`, `POST /tour` (ask for a browser review cycle of the watched listings; runs when the browser and agent are idle), `GET /opportunities`, `POST /opportunities/refresh`, `POST /opportunities/{id}/pursue` |
+| Source scan/feed | `POST /research`, `POST /tour` (ask for a browser review cycle of the watched listings; Start Autopilot asks automatically; runs whenever the browser is free), `GET /opportunities`, `POST /opportunities/refresh`, `POST /opportunities/{id}/pursue` |
 | Shared imports (administrative) | `GET/POST /opportunity-imports`, `POST /opportunity-imports/{id}/visibility` |
 | Browser | `GET /browser/frame`, `POST /browser/control`, `/browser/action`, `/browser/approval` |
 | RFPs | `GET/POST /rfps`, `POST /rfps/{id}`, `GET /rfps/{id}/workspace`, `POST /rfps/{id}/sections/{section}`, `POST /rfps/{id}/discussion/{section}` |

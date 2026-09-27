@@ -617,9 +617,10 @@ from app.rfp_research import RFPResearch
 rfp_research = RFPResearch(db, DATA, fetch_pdf, store_pdf, require_rfp, event)
 from app.response_review import register_response_review
 response_review = register_response_review(app, db, rfp_workspace, DATA)
-agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website,rfp_research=rfp_research,review=response_review)
+agent = BillyAgent(app, db, event, company_profile, opportunity_feed, rfp_workspace, save_response_section, research, b, export_response_pdf, usage_db=globals().get('_workspace_usage_db'), company_website=company_website,rfp_research=rfp_research,review=response_review, browser_tour=lambda: tour_state.__setitem__('requested', time.time()))
 
-TOUR_CYCLE_SECONDS = 900
+# Idle re-review cycle in minutes; 0 means the tour runs only when requested (Start Autopilot, POST /tour).
+TOUR_CYCLE_SECONDS = int(os.environ.get('BILLY_TOUR_MINUTES', '0')) * 60
 tour_state = {'requested': 0.0, 'cycle_done': 0.0, 'cursor': 0}
 
 class TourRequest(BaseModel):
@@ -634,11 +635,13 @@ async def request_tour(req: TourRequest = TourRequest()):
 
 async def tour_step():
     """One scheduling decision: review the next watched source in the browser if nothing else needs it.
-    A cycle runs when the app requested one, or every TOUR_CYCLE_SECONDS while idle. Returns the source toured."""
+    A cycle runs when requested (Start Autopilot or POST /tour) and, if BILLY_TOUR_MINUTES is set, on that
+    idle interval. It may run alongside an agent turn: browser tools yield it. Returns the source toured."""
     if b.busy or b.controller != 'billy' or b.pending: return None
-    if agent.task and not agent.task.done(): return None
     now = time.time()
-    if now - tour_state['cycle_done'] < TOUR_CYCLE_SECONDS and tour_state['requested'] <= tour_state['cycle_done']: return None
+    requested = tour_state['requested'] > tour_state['cycle_done']
+    timed = TOUR_CYCLE_SECONDS > 0 and now - tour_state['cycle_done'] >= TOUR_CYCLE_SECONDS
+    if not requested and not timed: return None
     with db() as c: watched = {r['source_id'] for r in c.execute('SELECT source_id FROM watches')}
     candidates = [s for s in SOURCES if s['id'] in watched and now - b.tour_failures.get(s['id'], 0) > 3600]
     if not candidates:

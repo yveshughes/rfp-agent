@@ -86,6 +86,15 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
             kind,title=c.execute("SELECT kind,title FROM events ORDER BY id DESC LIMIT 1").fetchone()
         self.assertEqual((kind,title),('working','Source page not available to Billy’s browser'))
 
+    async def test_autopilot_start_requests_the_browser_tour(self):
+        import time
+        server.tour_state.update({'requested':0.0,'cycle_done':time.time()})
+        with patch('app.agent.complete',side_effect=[(AgentAction(tool='finish',arguments={'message':'Nothing suitable right now.','blocked_reason':'No candidates'}),'test-model',{})]*2):
+            await server.agent.message(AgentTurn(text='Keep going',request_id='tour-start',autopilot=True,continuous=True))
+            await server.agent.task
+        self.assertGreater(server.tour_state['requested'],server.tour_state['cycle_done'])
+        server.tour_state.update({'requested':0.0,'cycle_done':time.time()})
+
     async def test_queue_lists_pipeline_rfps_first(self):
         import json
         a=(await server.create_rfp(server.RFPInput(title='Catalog candidate')))['id']
