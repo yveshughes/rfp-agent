@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=single-chat-1"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=live-voice-1"></head>
 <body>
 <div class="workspace" id="workspace">
   <aside class="navigation" aria-label="Main navigation">
@@ -31,7 +31,7 @@
         </div>
         <div id="conversation" class="conversation" aria-live="polite"></div>
       </div>
-      <form id="chat-form" class="composer"><div id="chat-attachments" class="chat-attachments" aria-live="polite" hidden></div><input id="chat-files" type="file" multiple hidden><button id="chat-attach" type="button" aria-label="Attach files or images" title="Attach company files · up to 5 files, 25 MB each"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button><label class="sr-only" for="chat-input">Message Billy</label><textarea id="chat-input" rows="1" placeholder="Find RFPs that fit my business and help me apply…"></textarea><button type="submit" aria-label="Send message">↑</button><small id="chat-status">Billy prepares drafts. You approve before submission.</small></form>
+      <form id="chat-form" class="composer"><div id="voice-call" class="voice-call" hidden><div id="voice-call-transcript" class="voice-call-transcript" aria-live="polite"></div><div class="voice-call-row"><span id="voice-call-status" role="status"></span><button type="button" id="voice-hangup">Hang up</button></div></div><div id="chat-attachments" class="chat-attachments" aria-live="polite" hidden></div><input id="chat-files" type="file" multiple hidden><button id="chat-attach" type="button" aria-label="Attach files or images" title="Attach company files · up to 5 files, 25 MB each"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button><button id="call-billy" type="button" aria-label="Call Billy" aria-pressed="false" title="Call Billy" disabled><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.7 4.2-2.2 1.6a12 12 0 0 0 6.2 6.2l1.6-2.2L20 15.5V19a1.5 1.5 0 0 1-1.6 1.5C10.6 20 4 13.4 3.5 5.6A1.5 1.5 0 0 1 5 4Z"/></svg></button><label class="sr-only" for="chat-input">Message Billy</label><textarea id="chat-input" rows="1" placeholder="Find RFPs that fit my business and help me apply…"></textarea><button type="submit" aria-label="Send message">↑</button><small id="chat-status">Billy prepares drafts. You approve before submission.</small></form>
     </section>
     <section id="view-rfps" class="view padded" hidden>
       <div id="rfp-list-page">
@@ -87,5 +87,5 @@
 <dialog id="new-workspace-dialog" class="new-workspace-dialog"><form id="new-workspace-form"><h2>Add a company</h2><p>Give Billy a new workspace. Its profile, chats, watched sources and responses stay separate.</p><label for="new-workspace-name">Company name</label><input id="new-workspace-name" maxlength="100" required autocomplete="organization" placeholder="e.g. Acme Environmental"><div><button type="button" id="cancel-workspace">Cancel</button><button id="create-workspace" class="primary">Create workspace ↗</button></div></form></dialog>
 <dialog id="response-review-dialog" class="document-dialog response-review-dialog"><header><h2>Review and submit</h2><button id="response-review-close" aria-label="Close response review">✕</button></header><div id="response-review-content"></div></dialog>
 <div id="toast" role="status" hidden></div>
-<script type="module" src="/app/workspace.js?v=single-chat-1"></script>
+<script type="module" src="/app/workspace.js?v=live-voice-1"></script>
 </body></html>

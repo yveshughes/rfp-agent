@@ -30,7 +30,7 @@ node --test tests/billy-motion.test.mjs
 | `test_company*`, `test_discussion*` | Fact provenance, direct edits, evidence links, follow-ups, attachment parsing, website learning and agenda openers |
 | `test_rfp_workspace`, `test_response_pdf` | Optimistic versions, manual review progress, PDF immutability/staleness |
 | `test_chat_outcomes`, `test_document_*` | Honest successful-action receipts, original previews, read progress and scopes |
-| `*.test.mjs` | Motion precedence, chat cards/attachments/suggestions, agenda rendering, document activity, audio encoding |
+| `*.test.mjs` | Motion precedence, chat cards/attachments/suggestions, agenda rendering, document activity, audio encoding, live-voice PCM conversion and function bridge |
 
 The sequential Autopilot regression generates two actual review PDFs in a temporary workspace with a fake action provider. It asserts Researching visibility before drafts, immediate continuation, saved queue items and exclusion from reselection. Separate regressions cover blocked-item advance, whole-workspace stop, pause/resume and upgrading an already-ready single-response job without changing its PDF. This tests the orchestration, not how well a live model chooses bids.
 

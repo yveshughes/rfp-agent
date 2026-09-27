@@ -20,7 +20,7 @@ Implementation baseline: `4140a21`. “Implemented” describes available code, 
 | Review PDF | Immutable PDF with page count/section versions; stale detection after edits | Review copy, not a validated submission package; exact fonts/forms/attachments require checking |
 | Review and submit | Shows PDF, gaps and deadline; review checkbox then link to agency source/instructions | No automated submission, signature, email, purchase or Responded transition |
 | Browser | Per-company Chromium on VM, screenshots, take-control/hand-back, explicit approvals | Browser context not durable; side-effect detection is not universal |
-| Voice | Optional Meta transcription to editable text; browser read-aloud; phone pose | Credentials/provider validation needed; not full-duplex voice; Gemini Live not integrated |
+| Voice | Call Billy: full-duplex conversation through Gemini Live with interruption; every workspace question is routed through `ask_billy` to the main agent, so replies come from GLM and are persisted in chat; optional Meta push-to-talk transcription remains | Audio and Billy's replies go to Google; no session persistence across page loads; small talk is not saved; spoken answers depend on the agent finishing within the wait window, otherwise Billy says he is still working |
 
 ## Continuous Autopilot contract
 

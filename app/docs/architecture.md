@@ -39,6 +39,7 @@ Public nginx serves a copy of `site/` separately. It does not proxy the private 
 | Vanilla HTML/CSS/ES modules | Workspace; no package manager/build step required |
 | Node built-in test runner | Frontend unit tests; no npm dependencies |
 | Vultr Serverless Inference | OpenAI-compatible chat-completions protocol; configured model, deployed baseline `glm-5.3` |
+| Gemini Live (optional) | Voice conversation: the server mints a single-use token with Billy's instruction and two functions locked in; the browser streams 16 kHz PCM in and plays 24 kHz PCM out; `ask_billy` posts to the agent API. Gemini never chooses agent actions |
 | Optional Meta transcription | Push-to-talk transcript into the editable composer; separate from the main Vultr agent |
 | systemd / nginx / SSH | Private backend, public static pages, private operator access |
 | macOS launchd | Existing demo operator's automatic tunnel reconnection; external host configuration |

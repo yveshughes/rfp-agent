@@ -36,6 +36,7 @@ This is the starting point for maintaining Billy. Reviewed against implementatio
 | Queue controls, review dialog | `../site/app/autopilot.js` | Continuous/global versus single-target behavior |
 | Chat cards, attachments and receipts | `../site/app/agent-chat.js`, `chat_outcomes.py` | Successful tool evidence, scoped links |
 | Billy animation and active PDF thumbnail | `../site/app/billy-motion.js`, `document_review.py` | Node motion/review tests |
+| Voice calls | `voice.py`, `../site/app/live-voice.js` | Token lock, function bridge and audio tests; the Gemini key stays server-side |
 | Runtime/deployment | `server.py`, `workspaces.py`, `../deploy/` | Isolation, shutdown, access and backup procedures |
 
 ## Non-negotiable behavior

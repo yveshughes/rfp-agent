@@ -10,6 +10,7 @@ import {createDiscussion} from './discuss.js?v=agenda-opener-1';
 import {createRFPDetail} from './rfp-detail.js?v=response-canvas-1';
 import {createCompanyProfile} from './company.js?v=direct-edits-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=phone-conversation-1';
+import {createLiveVoice} from './live-voice.js?v=1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -44,9 +45,9 @@ document.addEventListener('click',()=>queueMicrotask(rememberNavigation));
 const when = timestamp => new Date(timestamp * 1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
 const date = timestamp => new Date(timestamp * 1000).toLocaleDateString([], {month:'short',day:'numeric'});
 const billyMotion=createBillyMotion();
-let documentRequests=0, workspaceConnected=false, discussionState=null, agentState=null, agentActivity=null, lastAutoPanel=null;
+let documentRequests=0, workspaceConnected=false, discussionState=null, voiceState=null, agentState=null, agentActivity=null, lastAutoPanel=null;
 const updateBillyMotion=(forcePanel=false)=>{
-  const options={connected:workspaceConnected,documentRequests,discussionState:discussionState||agentState,agentActivity,autopilotRunning:reviewSnapshot?.run?.autopilot&&reviewSnapshot?.run?.status==='running',chatOpen:currentView==='chats'};
+  const options={connected:workspaceConnected,documentRequests,discussionState:voiceState||discussionState||agentState,agentActivity,autopilotRunning:reviewSnapshot?.run?.autopilot&&reviewSnapshot?.run?.status==='running',chatOpen:currentView==='chats'};
   const resolved=billyMotion.update(state,options);
   document.querySelector('[data-panel="discuss"]').hidden=resolved.motion==='idle';
   const panel=resolveBillyPanel(state,options);
@@ -65,6 +66,9 @@ const documentReview=createDocumentReview({esc,resourceURL:path=>API+path,openDo
 let reviewSnapshot=null;
 const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},importDocument:()=>companyProfile.documents()});
 autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
+// Live voice: Gemini listens and speaks; ask_billy routes every workspace question through the agent.
+const liveVoice=createLiveVoice({api,toast,agentChat,onState:value=>{voiceState=value;updateBillyMotion();},elements:{button:$('#call-billy'),bar:$('#voice-call'),status:$('#voice-call-status'),transcript:$('#voice-call-transcript'),hangup:$('#voice-hangup')}});
+window.billyVoice=liveVoice;
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
