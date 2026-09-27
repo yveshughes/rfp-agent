@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {floatToPcm16,pcm16ToFloat,bytesToBase64,base64ToBytes,socketURL,runFunctionCalls,billyHandlers} from '../site/app/live-voice.js';
+import {floatToPcm16,pcm16ToFloat,bytesToBase64,base64ToBytes,socketURL,runFunctionCalls,billyHandlers,barHeights} from '../site/app/live-voice.js';
 
 test('audio conversion round-trips and clips out-of-range samples',()=>{
   const pcm=floatToPcm16(new Float32Array([0,0.5,-0.5,1.5,-1.5]));
@@ -50,4 +50,16 @@ test('billy_reply returns the latest reply and any run error',async()=>{
   const snap={run:{status:'error',error:'Budget reached.'},messages:[{id:9,role:'billy',text:'Last word.'}]};
   const {agent}=fakeAgent({before:snap,sending:snap,after:[snap]});
   assert.deepEqual(await billyHandlers({agentChat:agent}).billy_reply(),{status:'error',reply:'Last word.',error:'Budget reached.'});
+});
+
+test('waveform bars follow signal level and ease between frames',()=>{
+  const silence=new Uint8Array(400).fill(128),loud=new Uint8Array(400).map((_,i)=>i%2?255:1);
+  const quiet=barHeights(silence,8);
+  assert.ok(quiet.every(v=>v===0));
+  const hot=barHeights(loud,8,quiet,0);
+  assert.ok(hot.every(v=>v>0.9));
+  const speech=barHeights(new Uint8Array(400).map((_,i)=>128+Math.round(20*Math.sin(i/3))),8);
+  assert.ok(speech.every(v=>v>0.3&&v<0.8));
+  const eased=barHeights(silence,8,hot,0.5);
+  assert.ok(eased.every(v=>v>0.4&&v<0.6));
 });

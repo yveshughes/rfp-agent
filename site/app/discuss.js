@@ -1,6 +1,6 @@
 import {startRecording} from './voice.js';
 // A discussion is a topic opener: Billy's question is shown, the answer goes to main chat.
-export function createDiscussion({api,esc,toast,showView,onState,sendAgent}) {
+export function createDiscussion({api,esc,toast,showView,onState,sendAgent,getLiveVoice}) {
   const $=s=>document.querySelector(s);
   let context={},active=false,busy=false,recording=null,startingMic=false,config=null,generation=0,visible=false;
   const drafts=new Map();
@@ -9,8 +9,9 @@ export function createDiscussion({api,esc,toast,showView,onState,sendAgent}) {
   function controls(){
     $('#discuss-send').disabled=busy||!!recording||startingMic;
     $('#discuss-input').disabled=busy||!!recording||startingMic;
-    $('#discuss-mic').disabled=busy||startingMic||!config?.voice_ready||!navigator.mediaDevices?.getUserMedia;
-    $('#discuss-mic').textContent=recording?'Stop recording ■':'Talk to Billy ♩';
+    const live=getLiveVoice?.();
+    $('#discuss-mic').disabled=busy||startingMic||!(live?.isReady()||config?.voice_ready)||!navigator.mediaDevices?.getUserMedia;
+    $('#discuss-mic').textContent=recording?'Stop recording ■':live?.isReady()?'Talk to Billy ☏':'Talk to Billy ♩';
     $('#discuss-mic').setAttribute('aria-pressed',String(!!recording));
     $('#discuss-end').disabled=busy||startingMic;
   }
@@ -21,7 +22,7 @@ export function createDiscussion({api,esc,toast,showView,onState,sendAgent}) {
   }
   async function configure(){
     try{config=await api('/discussion/config');
-      $('#discuss-voice-note').textContent=config.voice_ready?'Record → review transcript → send. Audio goes to Meta for transcription.':'Voice is not connected yet. You can discuss by text now.';
+      $('#discuss-voice-note').textContent=getLiveVoice?.()?.isReady()?'Talk to Billy opens a live call about this topic. Audio goes to Gemini; the answers come from Billy.':config.voice_ready?'Record → review transcript → send. Audio goes to Meta for transcription.':'Voice is not connected yet. You can discuss by text now.';
     }catch(e){$('#discuss-voice-note').textContent='Could not check the voice connection. Text is still available.';}controls();
   }
   function close(){active=false;onState(null);$('#discuss-session').hidden=true;$('#chat-scroll').hidden=false;$('#chat-form').hidden=false;}
@@ -57,6 +58,8 @@ export function createDiscussion({api,esc,toast,showView,onState,sendAgent}) {
     finally{busy=false;controls();motion('ready');}
   }
   $('#discuss-mic').onclick=async()=>{
+    const live=getLiveVoice?.();
+    if(live?.isReady()&&!recording){if(live.isActive())return live.stop();return live.start({context});}
     if(recording){await stopRecording();return;}if(busy||startingMic)return;
     window.speechSynthesis?.cancel();startingMic=true;controls();const token=generation;
     try{const capture=await startRecording(()=>stopRecording());if(token!==generation){await capture.stop(true);return;}recording=capture;motion('listening');$('#discuss-status').textContent='Listening… click Stop when you’re done (up to 60 seconds).';}

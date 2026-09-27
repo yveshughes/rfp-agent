@@ -25,6 +25,19 @@ export function base64ToBytes(text){
 }
 export function socketURL(socket,token){return `${socket.url}?${socket.token_parameter}=${encodeURIComponent(token)}`;}
 
+// Waveform bars: RMS level per slice of 8-bit time-domain audio, eased toward the previous frame.
+export function barHeights(samples,bars,previous=[],smoothing=0.55){
+  const out=new Array(bars).fill(0),slice=Math.max(1,Math.floor(samples.length/bars));
+  for(let b=0;b<bars;b++){
+    let sum=0;const start=b*slice,end=Math.min(samples.length,start+slice);
+    for(let i=start;i<end;i++){const v=(samples[i]-128)/128;sum+=v*v;}
+    const rms=end>start?Math.sqrt(sum/(end-start)):0;
+    const level=Math.min(1,Math.sqrt(rms*2.5));   // speech sits mid-height instead of pegging the bars
+    out[b]=previous[b]===undefined?level:previous[b]+(level-previous[b])*(1-smoothing);
+  }
+  return out;
+}
+
 // Function calls run in the browser. Unknown names and thrown errors become error responses;
 // nothing is executed that the workspace API itself would refuse.
 export async function runFunctionCalls(calls,handlers){
@@ -36,7 +49,7 @@ export async function runFunctionCalls(calls,handlers){
   }));
 }
 
-export function billyHandlers({agentChat,waitMs=12000,tick=800,sleep=ms=>new Promise(r=>setTimeout(r,ms))}){
+export function billyHandlers({agentChat,getContext=()=>undefined,waitMs=12000,tick=800,sleep=ms=>new Promise(r=>setTimeout(r,ms))}){
   const lastReply=snapshot=>snapshot?.messages?.filter(m=>m.role==='billy').at(-1)||null;
   return {
     async ask_billy({message}){
@@ -44,7 +57,7 @@ export function billyHandlers({agentChat,waitMs=12000,tick=800,sleep=ms=>new Pro
       if(!text)return {error:'Nothing to ask.'};
       if(agentChat.getSnapshot()?.run?.status==='running')return {status:'working',reply:'I am still busy with an earlier request. Ask me again in a moment.'};
       const previous=lastReply(agentChat.getSnapshot())?.id||0;
-      if(!await agentChat.send(text))return {error:'The request could not be sent to the workspace.'};
+      if(!await agentChat.send(text,getContext()))return {error:'The request could not be sent to the workspace.'};
       const deadline=Date.now()+waitMs;
       while(Date.now()<deadline){
         await sleep(tick);await agentChat.poll();
@@ -66,19 +79,43 @@ export function billyHandlers({agentChat,waitMs=12000,tick=800,sleep=ms=>new Pro
 }
 
 export function createLiveVoice({api,toast,agentChat,onState,elements}){
-  const {button,bar,status,transcript,hangup}=elements;
-  const handlers=billyHandlers({agentChat});
-  let ws=null,mic=null,player=null,active=false,ready=false,speaking=0,pendingCalls=0,config=null,resumeHandle=null;
+  const {button,bar,status,transcript,hangup,overlay,wave,overlayStatus,overlayHangup}=elements;
+  let context=undefined;
+  const handlers=billyHandlers({agentChat,getContext:()=>context});
+  let ws=null,mic=null,player=null,active=false,ready=false,speaking=0,pendingCalls=0,config=null,resumeHandle=null,frame=0,heights=[];
   const lines={you:'',billy:''};
+  const reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  const stateName=()=>!active?'off':!ready?'connecting':speaking>0?'speaking':pendingCalls>0?'thinking':'listening';
   function render(){
-    bar.hidden=!active;
+    const state=stateName();
+    bar.hidden=!active;overlay.hidden=!active;overlay.dataset.state=state;
     button.setAttribute('aria-pressed',String(active));
-    button.title=active?'Hang up':config?.ready?'Call Billy':'Live voice is not connected on the server';
-    status.textContent=!active?'':!ready?'Connecting…':speaking>0?'Billy is talking… interrupt any time.':pendingCalls>0?'Billy is checking his workspace…':'Listening.';
+    button.title=active?'Hang up':config?.ready?'Talk to Billy':'Live voice is not connected on the server';
+    const label=!active?'':state==='connecting'?'Connecting…':state==='speaking'?'Billy is talking… interrupt any time.':state==='thinking'?'Billy is checking his workspace…':'Listening.';
+    status.textContent=label;overlayStatus.textContent=label;
     transcript.innerHTML=[lines.you?`<p class="you"><span>You</span>${escapeHTML(lines.you)}</p>`:'',lines.billy?`<p class="billy"><span>Billy</span>${escapeHTML(lines.billy)}</p>`:''].join('');
   }
+  // The waveform in front follows real audio: the microphone while listening, Billy's playback while
+  // he speaks, a slow pulse while he checks the workspace. Everything behind it keeps updating.
+  function draw(){
+    if(!active){frame=0;return;}
+    const context2d=wave.getContext('2d'),ratio=window.devicePixelRatio||1,width=wave.clientWidth,height=wave.clientHeight;
+    if(wave.width!==Math.round(width*ratio)||wave.height!==Math.round(height*ratio)){wave.width=Math.round(width*ratio);wave.height=Math.round(height*ratio);}
+    context2d.setTransform(ratio,0,0,ratio,0,0);context2d.clearRect(0,0,width,height);
+    const bars=40,state=stateName();
+    let levels;
+    const analyser=state==='speaking'?player?.analyser:state==='listening'?mic?.analyser:null;
+    if(analyser){const data=new Uint8Array(analyser.fftSize);analyser.getByteTimeDomainData(data);levels=barHeights(data,bars,heights,reducedMotion.matches?0.9:0.55);}
+    else{const t=performance.now()/1000,pulse=state==='thinking'?0.18+0.12*Math.sin(t*3):0.06;levels=barHeights(new Uint8Array(bars).fill(128),bars,heights,0.8).map((v,i)=>Math.max(v,pulse*(0.6+0.4*Math.sin(i/3+t*2))));}
+    heights=levels;
+    const gap=4,barWidth=(width-gap*(bars-1))/bars,color=getComputedStyle(overlay).getPropertyValue('--wave-color').trim()||'#2f6b47';
+    context2d.fillStyle=color;
+    levels.forEach((level,i)=>{const h=Math.max(3,level*height);const x=i*(barWidth+gap),y=(height-h)/2;context2d.beginPath();context2d.roundRect(x,y,barWidth,h,barWidth/2);context2d.fill();});
+    frame=document.hidden?0:requestAnimationFrame(draw);
+  }
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&active&&!frame)frame=requestAnimationFrame(draw);});
   const escapeHTML=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  function setState(){onState(!active?null:speaking>0?'speaking':pendingCalls>0?'thinking':'listening');render();}
+  function setState(){onState(!active?null:speaking>0?'speaking':pendingCalls>0?'thinking':'listening');render();if(active&&!frame)frame=requestAnimationFrame(draw);}
   async function configure(){
     try{config=await api('/voice/config');}catch{config={ready:false};}
     button.disabled=!config.ready||!navigator.mediaDevices?.getUserMedia||typeof WebSocket==='undefined';
@@ -90,6 +127,7 @@ export function createLiveVoice({api,toast,agentChat,onState,elements}){
     const context=new AudioContext({sampleRate:16000});await context.resume();
     await context.audioWorklet.addModule('/app/voice-worklet.js');
     const source=context.createMediaStreamSource(stream),node=new AudioWorkletNode(context,'billy-recorder');
+    const analyser=context.createAnalyser();analyser.fftSize=1024;source.connect(analyser);
     let chunks=[],length=0;
     node.port.onmessage=event=>{
       if(!ready)return;
@@ -101,15 +139,19 @@ export function createLiveVoice({api,toast,agentChat,onState,elements}){
       send({realtimeInput:{audio:{data:bytesToBase64(new Uint8Array(pcm.buffer)),mimeType:`audio/pcm;rate=${context.sampleRate}`}}});
     };
     source.connect(node);node.connect(context.destination);   // the worklet emits silence; this keeps it processing
-    mic={stream,context,source,node};
+    mic={stream,context,source,node,analyser};
   }
   function createPlayer(){
     const context=new AudioContext({sampleRate:24000});let nextTime=0;const sources=new Set();
+    const analyser=context.createAnalyser();analyser.fftSize=1024;analyser.connect(context.destination);
     return {
+      analyser,
+      context,
       play(bytes){
         const samples=pcm16ToFloat(bytes);if(!samples.length)return;
+        if(context.state==='suspended')context.resume().catch(()=>{});
         const buffer=context.createBuffer(1,samples.length,24000);buffer.copyToChannel(samples,0);
-        const node=context.createBufferSource();node.buffer=buffer;node.connect(context.destination);
+        const node=context.createBufferSource();node.buffer=buffer;node.connect(analyser);
         const start=Math.max(context.currentTime+0.02,nextTime);node.start(start);nextTime=start+buffer.duration;
         sources.add(node);speaking++;setState();
         node.onended=()=>{if(sources.delete(node)){speaking=Math.max(0,speaking-1);setState();}};
@@ -135,13 +177,15 @@ export function createLiveVoice({api,toast,agentChat,onState,elements}){
     for(const part of content.modelTurn?.parts||[])if(part.inlineData?.data)player?.play(base64ToBytes(part.inlineData.data));
     if(content.turnComplete)lines.turn=null;
   }
-  async function start(){
+  async function start(options={}){
     if(active)return;
+    context=options.context;
+    // Create playback inside the click's activation; a context created after an await can stay suspended.
+    player=createPlayer();player.context.resume().catch(()=>{});
     let session;
-    try{session=await api('/voice/token',{});}catch(error){toast(error.message);return;}
+    try{session=await api('/voice/token',{});}catch(error){toast(error.message);await player.close();player=null;return;}
     active=true;ready=false;lines.you=lines.billy='';lines.turn=null;setState();
     try{
-      player=createPlayer();
       const setup=resumeHandle?{...session.setup,sessionResumption:{handle:resumeHandle}}:session.setup;
       ws=new WebSocket(socketURL(session.socket,session.token));
       ws.onopen=()=>ws.send(JSON.stringify({setup}));
@@ -156,11 +200,12 @@ export function createLiveVoice({api,toast,agentChat,onState,elements}){
     const socket=ws;ws=null;if(socket&&socket.readyState<=WebSocket.OPEN)try{socket.close(1000,'hang up');}catch{}
     if(mic){mic.stream.getTracks().forEach(t=>t.stop());try{mic.source.disconnect();mic.node.disconnect();}catch{}if(mic.context.state!=='closed')await mic.context.close();mic=null;}
     if(player){await player.close();player=null;}
-    speaking=0;pendingCalls=0;setState();
+    speaking=0;pendingCalls=0;context=undefined;heights=[];if(frame){cancelAnimationFrame(frame);frame=0;}setState();
   }
   button.onclick=()=>active?stop():start();
   hangup.onclick=()=>stop();
+  overlayHangup.onclick=()=>stop();
   window.addEventListener('pagehide',()=>{stop();});
   configure();
-  return {start,stop,configure,isActive:()=>active,sendText:text=>send({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}})};
+  return {start,stop,configure,isActive:()=>active,isReady:()=>!!config?.ready&&!button.disabled,debug:()=>({state:stateName(),speaking,pendingCalls,player:player?.context.state,mic:mic?.context.state,frame:!!frame}),sendText:text=>send({clientContent:{turns:[{role:'user',parts:[{text}]}],turnComplete:true}})};
 }
