@@ -85,6 +85,21 @@ def model_config():
             'configured':bool(os.environ.get('VULTR_SERVERLESS_INFERENCE_API_KEY') and os.environ.get('BILLY_VULTR_MODEL'))}
 
 
+def trim_reply(message,limit):
+    """Keep whole sentences from the start until the word limit; never return an empty reply."""
+    import re
+    sentences=[part.strip() for part in re.split(r'(?<=[.!?])\s+',' '.join(message.split())) if part.strip()]
+    kept=[];words=0
+    for sentence in sentences:
+        count=len(sentence.split())
+        if kept and words+count>limit:break
+        kept.append(sentence);words+=count
+        if words>=limit:break
+    text=' '.join(kept) if kept else message.strip()
+    if len(text.split())>limit:text=' '.join(text.split()[:limit]).rstrip(',;:')+'…'
+    return text
+
+
 class InvalidAction(RuntimeError):
     def __init__(self, usage=None, reason='invalid_action'):
         super().__init__('The model returned an invalid action. Saved work is retained; retry the turn.')
@@ -527,7 +542,10 @@ class BillyAgent:
             text=short.arguments.get('message','')
             if short.tool==action.tool and isinstance(text,str) and text.strip() and len(text.split())<=limit:return text
             messages.append({'role':'user','content':f'That rewrite was not valid. Return only the requested tool and a message of at most {limit} words.'})
-        raise RuntimeError('Billy could not prepare a concise reply. Your saved work is retained; reply to continue.')
+        # A rewrite failure must not turn a completed turn into an error: keep Billy's own words,
+        # trimmed to whole sentences within the limit, and log that the shortening was mechanical.
+        self.event('agent_retry','Billy shortened his reply without the model',f'The rewrite failed twice; the reply was trimmed to about {limit} words.')
+        return trim_reply(message,limit)
 
     async def run(self,rid):
         # One task owns the queue, so cancellation cannot leave a second worker running.

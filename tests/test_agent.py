@@ -83,6 +83,24 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(len(snap['messages'][-1]['text'].split()),40)
         self.assertIn('Insurance still needs confirmation',snap['messages'][-1]['text'])
 
+    async def test_failed_rewrite_trims_the_reply_instead_of_failing_the_turn(self):
+        from app.agent import trim_reply
+        self.assertEqual(trim_reply('First point here. Second point follows. Third one.',6),'First point here. Second point follows.')
+        self.assertEqual(trim_reply('One enormous sentence that just keeps going and going without any punctuation at all',5),'One enormous sentence that just…')
+        self.assertEqual(trim_reply('Short.',40),'Short.')
+        long=' '.join(f'Sentence number {i} explains a detail of the review.' for i in range(12))+' Do you have the certificate?'
+        results=[(AgentAction(tool='pursue',arguments={'rfp_id':'x','reason':'fit'}),'test-model',{}),(AgentAction(tool='ask',arguments={'message':long}),'test-model',{}),InvalidAction(),InvalidAction()]
+        with patch('app.agent.complete',side_effect=results),patch.object(server.agent,'execute',return_value={'selected':'x','reason':'fit'}):
+            await server.agent.message(AgentTurn(text='Find RFPs that match my business and help me apply.',request_id='trim-fallback'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'waiting')
+        reply=snap['messages'][-1]['text']
+        self.assertLessEqual(len(reply.split()),40)
+        self.assertTrue(reply.startswith('Sentence number 0'))
+        with server.db() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM events WHERE title='Billy shortened his reply without the model'").fetchone()[0],1)
+
     async def test_explicit_detail_request_can_receive_a_fuller_reply(self):
         detail=' '.join(['Useful detail.']*45)
         action=AgentAction(tool='finish',arguments={'message':detail,'detail_request_quote':'Give me a detailed breakdown'})
