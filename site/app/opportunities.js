@@ -47,7 +47,8 @@ export function createOpportunityFeed({api,esc,toast,openRFP,showSources,showCom
           ${r.fit.evidence.map(e=>`<p>${esc(fieldName(e.field))}${e.document_id?` · <button data-evidence="${esc(e.document_id)}" data-page="${e.page}">View supporting page ${e.page} ↗</button>`:''}</p>`).join('')}
           <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">View agency listing ↗</a></details></td>
         <td>${esc(r.deadline||'To confirm')}</td>
-        <td>${r.pursued?`<span class="badge">${esc(r.status)}</span>`:`<button class="opportunity-pursue" data-pursue="${r.id}">Pursue RFP</button>`}</td></tr>`).join('')||`<tr><td colspan="5">${data.rows.length?'No opportunities match your filters. Try another search.':'No opportunities yet. Choose sources for Billy to follow.'}</td></tr>`;
+        <td>${r.pursued?r.status==='Ready for review'?`<button class="badge ready-response-link" data-response="${r.id}">Ready for review ↗</button>`:`<span class="badge">${esc(r.status)}</span>`:`<button class="opportunity-pursue" data-pursue="${r.id}">Pursue RFP</button>`}</td></tr>`).join('')||`<tr><td colspan="5">${data.rows.length?'No opportunities match your filters. Try another search.':'No opportunities yet. Choose sources for Billy to follow.'}</td></tr>`;
+    host.querySelectorAll('[data-response]').forEach(b=>b.onclick=()=>openRFP(b.dataset.response,data.rows.find(r=>r.id===b.dataset.response),'response'));
     host.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openRFP(b.dataset.open,data.rows.find(r=>r.id===b.dataset.open)));
     host.querySelectorAll('[data-evidence]').forEach(b=>b.onclick=()=>openDocument(b.dataset.evidence,Number(b.dataset.page)));
     host.querySelectorAll('[data-pursue]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{await api('/opportunities/'+b.dataset.pursue+'/pursue',{});signature='';await load();toast('Added to My RFPs.');}catch(e){toast(e.message);b.disabled=false;}});

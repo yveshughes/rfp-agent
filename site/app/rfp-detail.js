@@ -1,14 +1,22 @@
-export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
+import {createResponseCanvas,syncCanvasDrafts} from './response-canvas.js?v=1';
+export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion,onSaved}) {
   const $=s=>document.querySelector(s);
   let id=null, tab='files', data=null, request=0, saving=false, savingNote=false;
-  const drafts=new Map(), noteDrafts=new Map();
+  const drafts=new Map(), baselines=new Map(), noteDrafts=new Map();
+  const canvas=createResponseCanvas({host:$('#rfp-canvas-panel'),api,esc,toast,drafts,baselines,onBusy:value=>{saving=value;if(!value&&data&&tab!=='response')render();},onSaved:(result,target)=>{if(id===target){data=result;renderTabs();renderMeta();}onSaved?.(result);}});
   const key=()=>`${id}:${tab}`;
   const part=()=>data?.sections.find(s=>s.id===tab);
-  const draft=()=>{if(!drafts.has(key()))drafts.set(key(),structuredClone(part()));return drafts.get(key());};
+  const draft=()=>{if(!drafts.has(key())){drafts.set(key(),structuredClone(part()));baselines.set(key(),structuredClone(part()));}return drafts.get(key());};
+  function renderMeta(){
+    const meta=$('#rfp-page-meta');
+    meta.innerHTML=(data.rfp.status==='Ready for review'?'<button class="ready-response-link" id="rfp-ready-response">Ready for review ↗</button>':esc(data.rfp.status))+(data.rfp.deadline?` · Due ${esc(data.rfp.deadline)}`:'');
+    $('#rfp-status').value=data.rfp.status;
+    if($('#rfp-ready-response'))$('#rfp-ready-response').onclick=()=>{if(!saving){tab='response';render();}};
+  }
   function renderTabs(){
     if(!data)return;
     const count=getDocuments().filter(d=>d.rfp_id===id).length;
-    $('#rfp-work-tabs').innerHTML=`<button role="tab" aria-selected="${tab==='files'}" data-rfp-tab="files" aria-controls="rfp-work-panel">RFP Files <span>(${count})</span></button>`+data.sections.map(s=>`<button role="tab" aria-selected="${tab===s.id}" data-rfp-tab="${s.id}" aria-controls="rfp-work-panel">${esc(s.title)} <span>(${s.progress}%)</span></button>`).join('');
+    $('#rfp-work-tabs').innerHTML=`<button role="tab" aria-selected="${tab==='files'}" data-rfp-tab="files" aria-controls="rfp-work-panel">RFP Files <span>(${count})</span></button>`+`<button role="tab" aria-selected="${tab==='response'}" data-rfp-tab="response" aria-controls="rfp-work-panel">Response</button>`+data.sections.map(s=>`<button role="tab" aria-selected="${tab===s.id}" data-rfp-tab="${s.id}" aria-controls="rfp-work-panel">${esc(s.title)} <span>(${s.progress}%)</span></button>`).join('');
     document.querySelectorAll('[data-rfp-tab]').forEach(b=>b.onclick=()=>{if(saving)return;noteDrafts.set(key(),$('#rfp-discussion-input').value);tab=b.dataset.rfpTab;render();});
     $('#rfp-progress-label').textContent=`${data.progress}% reviewed`;
     $('#rfp-progress-bar').value=data.progress;
@@ -17,7 +25,11 @@ export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
   function render(){
     if(!data)return;
     renderTabs();
-    $('#rfp-page-meta').textContent=[data.rfp.status,data.rfp.deadline?`Due ${data.rfp.deadline}`:''].filter(Boolean).join(' · ');
+    renderMeta();
+    const full=tab==='response';
+    $('#rfp-canvas-panel').hidden=!full;$('#rfp-needs').hidden=full;
+    if(full){$('#rfp-files-panel').hidden=true;$('#rfp-response-panel').hidden=true;$('#rfp-discussion').hidden=true;$('#rfp-work-panel').setAttribute('aria-label','Response document');canvas.render(id,data);return;}
+    canvas.leave();
     const hasFiles=getDocuments().some(d=>d.rfp_id===id);
     const files=tab==='files', s=part();
     $('#rfp-files-panel').hidden=!files;$('#rfp-response-panel').hidden=files;
@@ -40,11 +52,11 @@ export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
     checks();
     if(saving)$('#response-section-form').querySelectorAll('input,textarea,button').forEach(el=>el.disabled=true);
     $('#apply-response-checklist').onclick=()=>{const lines=$('#response-checklist-lines').value.split('\n').map(v=>v.trim()).filter(Boolean);if(!lines.length||lines.length>40||lines.some(v=>v.length>500)){toast('Use 1–40 checklist items, up to 500 characters each.');return;}d.checks=lines.map(text=>({text,done:d.checks.find(c=>c.text===text)?.done||false}));checks();dirty();};
-    if($('#response-load-saved'))$('#response-load-saved').onclick=()=>{drafts.delete(key());render();};
+    if($('#response-load-saved'))$('#response-load-saved').onclick=()=>{drafts.delete(key());baselines.delete(key());render();};
     $('#response-section-form').onsubmit=async e=>{
       e.preventDefault();if(saving||conflict)return;
       const target=id, targetTab=tab, targetKey=key();saving=true;const form=e.target;form.querySelectorAll('input,textarea,button').forEach(el=>el.disabled=true);
-      try{const result=await api(`/rfps/${target}/sections/${targetTab}`,d);drafts.delete(targetKey);saving=false;if(id===target){data=result;render();}toast('Response section saved.');}
+      try{const result=await api(`/rfps/${target}/sections/${targetTab}`,d);drafts.delete(targetKey);baselines.delete(targetKey);saving=false;if(id===target){data=result;render();}onSaved?.(result);toast('Response section saved.');}
       catch(err){toast(err.message);if(id===target&&tab===targetTab){form.querySelectorAll('input,textarea,button').forEach(el=>el.disabled=false);$('#response-save-state').textContent='Not saved — your draft is retained.';}}
       finally{saving=false;if(id!==target&&tab!=='files')render();}
     };
@@ -68,9 +80,9 @@ export function createRFPDetail({api,esc,toast,getDocuments,openDiscussion}) {
       $('#rfp-metadata').open=!id;$('#rfp-work-tabs').hidden=!id;$('#rfp-work-panel').hidden=true;$('#rfp-overall-progress').hidden=!id;
       $('#rfp-work-tabs').innerHTML='<span class="muted">Loading response sections…</span>';
       if(!id)return;
-      try{const result=await api(`/rfps/${id}/workspace`);if(token!==request)return;data=result;tab=data.sections.some(s=>s.id===selectedTab)?selectedTab:'files';$('#rfp-work-panel').hidden=false;render();}catch(err){if(token===request)$('#rfp-work-tabs').innerHTML='<span class="muted">Could not load sections. Reopen the RFP to retry.</span>';toast(err.message);}
+      try{const result=await api(`/rfps/${id}/workspace`);if(token!==request)return;data=result;syncCanvasDrafts(id,data.sections,drafts,baselines);tab=selectedTab==='response'||data.sections.some(s=>s.id===selectedTab)?selectedTab:'files';$('#rfp-work-panel').hidden=false;render();}catch(err){if(token===request)$('#rfp-work-tabs').innerHTML='<span class="muted">Could not load sections. Reopen the RFP to retry.</span>';toast(err.message);}
     },
-    back(){++request;$('#rfp-detail-page').hidden=true;$('#rfp-list-page').hidden=false;},
+    back(){canvas.leave();++request;$('#rfp-detail-page').hidden=true;$('#rfp-list-page').hidden=false;},
     filesChanged(){renderTabs();},
     async reloadNotes(){if(!id||!data)return;const target=id;try{const latest=await api(`/rfps/${id}/workspace`);if(id===target){data.notes=latest.notes;renderNotes();}}catch(e){toast(e.message);}},
   };

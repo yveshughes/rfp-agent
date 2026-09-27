@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=autopilot-queue-1"></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Billy — RFP Agent</title><link rel="icon" href="/icon.svg"><link rel="stylesheet" href="/app/workspace.css?v=response-canvas-1"></head>
 <body>
 <div class="workspace" id="workspace">
   <aside class="navigation" aria-label="Main navigation">
@@ -51,7 +51,7 @@
           <div id="rfp-needs" class="rfp-needs"><div><span class="eyebrow">FROM BILLY</span><h2 id="rfp-needs-title">Let’s gather the originals.</h2><p id="rfp-needs-copy"></p></div><div class="rfp-discuss-actions"><button id="rfp-discuss-text">Discuss with Billy ↗</button><button id="rfp-show-notes">Section notes</button></div></div>
           <section id="rfp-discussion" class="rfp-discussion" hidden><h3>Discuss this section</h3><p class="muted">Notes and your discussion messages stay with this RFP section.</p><div id="rfp-discussion-notes"></div><form id="rfp-discussion-form"><label class="sr-only" for="rfp-discussion-input">Discussion note</label><textarea id="rfp-discussion-input" rows="3" maxlength="6000" required placeholder="Tell Billy what to consider…"></textarea><button class="primary" id="rfp-note-send">Save note</button></form></section>
           <div id="rfp-files-panel"><section id="rfp-originals" hidden><h3>Original documents</h3><p class="muted">Original documents and saved source pages stay in your private workspace. Review the text or open the original.</p><div id="rfp-documents"></div><form id="rfp-download-form" class="rfp-fields"><label>PDF source URL<input id="rfp-pdf-url" type="url" required placeholder="https://agency.gov/original.pdf"></label><button id="download-rfp-pdf">Download &amp; save original</button><small>Up to 25 MB. Extracts the first 100 pages; keeps the entire PDF.</small></form><form id="rfp-upload-form" class="rfp-fields"><label>Or upload an original PDF<input id="rfp-upload" type="file" accept="application/pdf" required></label><div class="field-pair"><label>First page<input id="rfp-first-page" type="number" min="1" value="1"></label><label>Last page<input id="rfp-last-page" type="number" min="1" placeholder="Last page"></label></div><button id="upload-rfp-pdf">Save uploaded original</button><small>Select up to 100 pages for extraction. The whole original is retained.</small></form></section></div>
-          <div id="rfp-response-panel" hidden></div>
+          <div id="rfp-response-panel" hidden></div><div id="rfp-canvas-panel" hidden></div>
         </section>
       </div>
     </section>
@@ -87,5 +87,5 @@
 <dialog id="new-workspace-dialog" class="new-workspace-dialog"><form id="new-workspace-form"><h2>Add a company</h2><p>Give Billy a new workspace. Its profile, chats, watched sources and responses stay separate.</p><label for="new-workspace-name">Company name</label><input id="new-workspace-name" maxlength="100" required autocomplete="organization" placeholder="e.g. Acme Environmental"><div><button type="button" id="cancel-workspace">Cancel</button><button id="create-workspace" class="primary">Create workspace ↗</button></div></form></dialog>
 <dialog id="response-review-dialog" class="document-dialog response-review-dialog"><header><h2>Review and submit</h2><button id="response-review-close" aria-label="Close response review">✕</button></header><div id="response-review-content"></div></dialog>
 <div id="toast" role="status" hidden></div>
-<script type="module" src="/app/workspace.js?v=autopilot-queue-1"></script>
+<script type="module" src="/app/workspace.js?v=response-canvas-1"></script>
 </body></html>
