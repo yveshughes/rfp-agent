@@ -94,7 +94,8 @@ def register_discussion(app,db,event,company_profile,company_chat,require_rfp):
                 row=c.execute('SELECT field FROM discussion_context WHERE scope=?',(key,)).fetchone()
             field=req.field or (row['field'] if row else '')
             history=messages(key)
-            if req.action=='start' and history and not req.opening_question:
+            opening_question=req.opening_question.strip()
+            if req.action=='start' and history and (not opening_question or any(m['role']=='billy' and m['text']==opening_question for m in history)):
                 return outcomes(key)
             insurance=bool(re.search(r'\b(insurance|liability|coverage|hartford|insured)\b',text,re.I))
             if not req.field and field:
@@ -106,8 +107,8 @@ def register_discussion(app,db,event,company_profile,company_chat,require_rfp):
                 if not insurance and not (stage and short_answer): field=''
             if not req.field and (insurance or req.action=='insurance_example'): field='insurance.coverage'
             if req.action=='insurance_example': field='insurance.coverage'
-            if req.action=='start' and req.opening_question:
-                reply=req.opening_question.strip()
+            if req.action=='start' and opening_question:
+                reply=opening_question
             elif field:
                 action='ask' if req.action=='start' else req.action if req.action=='insurance_example' else 'answer'
                 result=await company_chat(ProfileAnswer(field=field,text=text or 'Review this detail',action=action,conversation=key))

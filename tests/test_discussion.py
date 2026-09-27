@@ -31,6 +31,26 @@ class DiscussionTests(unittest.IsolatedAsyncioTestCase):
         with server.db() as c:
             self.assertEqual(c.execute('SELECT field FROM discussion_context WHERE scope="company:insurance.coverage"').fetchone()['field'],'insurance.coverage')
 
+    async def test_repeated_agenda_clicks_reopen_without_duplicate_messages(self):
+        import asyncio
+        question='Do you have a current insurance certificate we can add?'
+        async def open_topic():
+            return await self.turn(action='start',field='insurance.coverage',opening_question=' '+question+' ')
+        await asyncio.gather(open_topic(),open_topic(),open_topic())
+        first=await open_topic()
+        self.assertEqual([m['text'] for m in first['messages']],[question])
+        await self.turn('I do not have insurance',field='insurance.coverage')
+        before=await open_topic()
+        after=await open_topic()
+        self.assertEqual(after,before)
+        self.assertEqual(sum(m['text']==question for m in after['messages']),1)
+
+    async def test_distinct_questions_in_same_rfp_scope_still_open(self):
+        rfp=(await server.create_rfp(server.RFPInput(title='Agenda questions')))['id']
+        for question in ['Who is the project lead?','When can the team start?','Who is the project lead?']:
+            result=await self.turn(action='start',rfp_id=rfp,opening_question=question)
+        self.assertEqual([m['text'] for m in result['messages']],['Who is the project lead?','When can the team start?'])
+
     async def test_example_extracts_then_waits_for_explicit_acceptance(self):
         await self.turn(action='insurance_example',field='insurance.coverage')
         result=await self.turn('We have 1M through the Hartford in liability coverage.',field='insurance.coverage')
