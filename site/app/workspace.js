@@ -1,4 +1,4 @@
-import {createDiscussionAgenda} from './discussion-agenda.js?v=2';
+import {createDiscussionAgenda} from './discussion-agenda.js?v=friendly-topics-1';
 import {createDocumentReview} from './document-review.js?v=1';
 import {createChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=website-prompt-1';
