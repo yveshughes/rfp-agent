@@ -354,7 +354,7 @@ class ActionCompletionTests(unittest.IsolatedAsyncioTestCase):
         from app.discussion import DiscussionTurn
         from app.discussion_agenda import build_agenda
         item=next(i for i in build_agenda(server.db)['items'] if i['id']=='insurance')
-        await server.discuss(DiscussionTurn(**item['context'],action='start',opening_question=item['question']))
+        await server.discuss(DiscussionTurn(**item['context'],opening_question=item['question']))
         seen=[]
         def provider(messages):
             seen.append(messages.copy())

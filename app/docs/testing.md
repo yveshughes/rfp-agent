@@ -27,7 +27,7 @@ node --test tests/billy-motion.test.mjs
 | `test_agent`, `test_autopilot` | Tool discipline, citations/page reading, concise replies, budgeting, queue continuation, duplicate prevention, pause/resume, real saved sections/PDFs |
 | `test_workspaces`, `test_db_connection` | Company scoping, shared ledger/catalog ownership, connection closure/transactions |
 | `test_opportunities`, `test_opportunity_imports`, `test_workspace` | Discovery, feed evidence/fit, import visibility/idempotency, source filters, browser/API guards |
-| `test_company*`, `test_discussion*` | Fact provenance, attachment parsing, website learning, guided dialogue and agenda |
+| `test_company*`, `test_discussion*` | Fact provenance, direct edits, evidence links, follow-ups, attachment parsing, website learning and agenda openers |
 | `test_rfp_workspace`, `test_response_pdf` | Optimistic versions, manual review progress, PDF immutability/staleness |
 | `test_chat_outcomes`, `test_document_*` | Honest successful-action receipts, original previews, read progress and scopes |
 | `*.test.mjs` | Motion precedence, chat cards/attachments/suggestions, agenda rendering, document activity, audio encoding |

@@ -29,7 +29,7 @@ Preview folder spelling and file naming are defined in `document_previews.py`; t
 | Sources/research | `watches`, `checks`, `source_scans`, `opportunity_sources`, `opportunity_reviews`, `rfp_source_pages` | Preserve source failures, saved evidence and allowed attachment links |
 | Files | `documents` | Original filename, association, hash, extraction ranges, text, media type and source URL |
 | Company knowledge | `company_facts`, `company_web_pages`, `company_web_evidence` | Evidence/status attached to saved facts |
-| Guided conversations | `company_messages`, `company_dialogue`, `company_tasks`, `discussion_messages`, `discussion_context`, `discussion_outcomes` | Separate from main-agent history; discussion scope includes company field or RFP section |
+| Profile history and agenda | `company_messages`, `company_tasks`, `discussion_messages` | Per-field audit trail of edits/evidence/tasks, queued follow-ups, and agenda opening questions by company field or RFP section; older `company_dialogue`, `discussion_context` and `discussion_outcomes` tables are unused |
 | Main agent | `agent_runs`, `agent_messages`, `agent_steps`, `agent_read_pages`, `agent_message_documents`, `agent_analysis`, `agent_modes` | Persistent run/selected RFP, action receipts, source-read progress and mode |
 | Sequential queue | `agent_queues`, `agent_queue_items` | Run → session; completed/blocked items retained across Continue |
 | Usage | `agent_usage` | All company runtimes use default DB ledger; reservations remain if no actual usage is returned |
@@ -60,8 +60,8 @@ All paths below start at the selected workspace API unless marked global.
 | Browser | `GET /browser/frame`, `POST /browser/control`, `/browser/action`, `/browser/approval` |
 | RFPs | `GET/POST /rfps`, `POST /rfps/{id}`, `GET /rfps/{id}/workspace`, `POST /rfps/{id}/sections/{section}`, `POST /rfps/{id}/discussion/{section}` |
 | Originals | `POST /documents` (multipart PDF/range), `POST /rfps/{id}/documents/download`, `GET /documents/{id}`, `/documents/{id}/file`, `/documents/{id}/preview` |
-| Company | `GET /company`, `POST /company/chat`, `/company/evidence`, `/company/tasks/{id}`, `/company/attachments` (multipart) |
-| Conversation | `GET /discussion/config`, `/discussion/agenda`, `POST /discussion`, `/discussion/transcribe` |
+| Company | `GET /company`, `POST /company/facts/{field}`, `/company/evidence`, `/company/tasks/{id}`, `/company/attachments` (multipart) |
+| Conversation | `GET /discussion/config`, `/discussion/agenda`, `POST /discussion` (records an opening question only), `/discussion/transcribe` |
 | Agent controls | `POST /agent/message`, `/agent/pause`, `/agent/resume` |
 | Review | `GET /response-pdfs`, `/response-pdfs/{id}`, `/rfps/{id}/review` |
 
@@ -84,7 +84,7 @@ For a single RFP use `continuous: false` and `context: {"rfp_id":"..."}`. Ordina
 
 `POST /agent/pause` accepts `{}`. `POST /agent/resume` accepts `{}` to preserve mode or `{"continuous":true}` to enable the queue on an interrupted/paused/error Autopilot run. It is not a start endpoint for completed runs. A new `/agent/message` starts a new queue session. One run record may be reused across turns; do not equate run ID with one request or one queue session.
 
-`GET /agent` includes `run.status`, `run.rfp_id`, `run.autopilot`, `run.continuous`, `run.blocked_reason`, `run.queue_items`, messages, successful-action-derived outcomes, steps, document review and usage. Run states are `running`, `waiting`, `complete`, `paused`, `interrupted`, `error`. `complete` means that turn stopped; check `blocked_reason` and review readiness before claiming success. Queue items use `ready` or `blocked`; the currently selected item lives on the run until it finishes.
+`GET /agent` includes `run.status`, `run.rfp_id`, `run.autopilot`, `run.continuous`, `run.blocked_reason`, `run.queue_items`, the most recent 60 messages with `run.total_messages` and `run.messages_truncated`, successful-action-derived outcomes, the steps belonging to those messages, document review and usage. Run states are `running`, `waiting`, `complete`, `paused`, `interrupted`, `error`. `complete` means that turn stopped; check `blocked_reason` and review readiness before claiming success. Queue items use `ready` or `blocked`; the currently selected item lives on the run until it finishes.
 
 The Response canvas uses the existing section POST route, saving changed sections sequentially rather than as an atomic transaction. On partial failure, completed saves remain saved and unsaved edits are retained. A 409 exposes the newer version and offers an explicit discard/reload action; no automatic overwrite occurs. Saving does not regenerate the review PDF.
 
@@ -94,7 +94,7 @@ Response-section POST requires `title`, `body`, `checks` and `version`. A stale 
 
 - Retain the complete original; extraction range/text is a separate representation. Company documents have `rfp_id = NULL`.
 - PDF imports: 25 MB, up to 100 extracted pages; automatic imports take the first 100. Range import uses original 1-based page numbers. PDF text is capped per page; encrypted/unreadable files fail.
-- Agent reads: up to eight pages per call, with pagination/size guards. Analysis requires reading all extracted RFP pages; reused company documents already being read must be fully read before drafting. This does not prove all original pages were extracted or every attachment was found.
+- Agent reads: up to eight pages per call, with pagination/size guards; PDF page text is stored up to 50,000 characters. Analysis requires reading all extracted RFP pages; reused company documents already being read must be fully read before drafting. Read markers belong to the current user turn and are cleared when a new message starts, so a later request re-reads what it cites; one continuous Autopilot request counts as one turn. This does not prove all original pages were extracted or every attachment was found.
 - Exact source quotations and document/RFP association are checked. Website/text excerpt numbers are not PDF page numbers. OCR is not proof of an unseen logo, signature or layout.
 - Images: 20 megapixels maximum, normalized to at most 3000×3000 for English OCR. DOCX/text extraction is bounded; original remains. Scanned PDF OCR is not implemented.
 - RFP source reads: only saved URL/recorded links, public-address validation; eight calls between ask/finish boundaries. HTML source text is bounded at 120,000 characters and marked when clipped.

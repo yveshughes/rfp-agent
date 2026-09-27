@@ -529,13 +529,13 @@ from app.company_attachments import register_company_attachments
 company_attachment, original_document = register_company_attachments(app, db, DATA, store_pdf, event, document_work)
 
 from app.company import register_company
-company_profile, company_chat, company_evidence, company_task = register_company(app, db, event)
+company_profile, company_edit, company_evidence, company_task = register_company(app, db, event)
 
 from app.rfp_workspace import register_rfp_workspace
 rfp_workspace, save_response_section, add_response_note = register_rfp_workspace(app, db, require_rfp, event)
 
 from app.discussion import register_discussion
-discuss, discussion_config, transcribe = register_discussion(app, db, event, company_profile, company_chat, require_rfp)
+discuss, discussion_config, transcribe = register_discussion(app, db, require_rfp)
 
 from app.opportunity_imports import register_imports
 import_batches, import_opportunities, import_visibility, sync_catalog = register_imports(app, db, catalog_db)

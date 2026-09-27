@@ -35,8 +35,8 @@ def build_agenda(db):
         historical=[f for f in fields if f in CURRENT_FIELDS and facts.get(f,{}).get('document_id')]
         if not missing and not historical:covered+=1;continue
         field=(missing or historical)[0]
-        items.append({'id':id,'label':label,'status':'Not added' if missing else 'Confirm current details','question':question,'context':{'field':field,'source':'discussion'}})
+        items.append({'id':id,'label':label,'status':'Not added' if missing else 'Confirm current details','question':question,'context':{'field':field}})
     for task in tasks:
         if any(item['context'].get('field')==task['field'] for item in items):continue
-        items.append({'id':'task-'+task['id'],'label':task['title'],'status':'Queued follow-up','question':'What do we need to resolve for this follow-up?','context':{'field':task['field'],'source':'discussion'}})
+        items.append({'id':'task-'+task['id'],'label':task['title'],'status':'Queued follow-up','question':'What do we need to resolve for this follow-up?','context':{'field':task['field']}})
     return {'items':items,'covered':covered,'total_profile_topics':len(TOPICS)}

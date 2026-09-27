@@ -64,8 +64,7 @@ All secrets belong in the server environment, never frontend JavaScript or versi
 | `BILLY_VULTR_MODEL` | No default; deployment baseline `glm-5.3`; must match returned provider model |
 | `BILLY_INFERENCE_BUDGET_USD` | `100`; shared cumulative estimated usage/reservations, not a billing subscription or daily reset |
 | `PLAYWRIGHT_BROWSERS_PATH` | Playwright default locally; `/opt/billy-browsers` on the VM |
-| `META_API_KEY` / `MODEL_API_KEY` | Optional Meta adapter key; first takes precedence |
-| `BILLY_META_MODEL` | `muse-spark-1.3`; optional read-only guided chat model |
+| `META_API_KEY` / `MODEL_API_KEY` | Optional Meta transcription key for push-to-talk; first takes precedence |
 
 The main model endpoint is configured in `agent.py` as `https://api.vultrinference.com/v1`. The current estimator hard-codes $0.75 input / $3 output per million tokens as implementation assumptions. Do not treat this table as current provider pricing. Revalidate estimator/model compatibility before changing models; the budget is not an account-wide billing guarantee.
 

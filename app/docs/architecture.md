@@ -39,7 +39,7 @@ Public nginx serves a copy of `site/` separately. It does not proxy the private 
 | Vanilla HTML/CSS/ES modules | Workspace; no package manager/build step required |
 | Node built-in test runner | Frontend unit tests; no npm dependencies |
 | Vultr Serverless Inference | OpenAI-compatible chat-completions protocol; configured model, deployed baseline `glm-5.3` |
-| Optional Meta APIs | Guided open-ended replies/transcription; separate from main Vultr agent |
+| Optional Meta transcription | Push-to-talk transcript into the editable composer; separate from the main Vultr agent |
 | systemd / nginx / SSH | Private backend, public static pages, private operator access |
 | macOS launchd | Existing demo operator's automatic tunnel reconnection; external host configuration |
 | Mermaid 12.0.0 / Google Fonts | Public technical diagram and typography; CDN/font fallbacks |

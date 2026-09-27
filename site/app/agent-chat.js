@@ -2,7 +2,7 @@ import {renderChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {resolveAgentActivity} from './billy-motion.js?v=autopilot-1';
 import {renderChatOutcome} from './chat-cards.js?v=1';
 
-export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply,openReview,onPipelineChange}) {
+export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,resourceURL,onReply,openReview,onPipelineChange}) {
   const $=s=>document.querySelector(s);
   const host=document.createElement('div');host.id='agent-conversation';host.className='conversation';$('#chat-scroll').append(host);
   let snapshot=null,polling=false,sending=false,signature='',lastStatus='',pipelineSignature='',discussionReply=false;
@@ -13,8 +13,7 @@ export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,
     if(pipelineSignature!==pipelineKey){const changed=!!pipelineSignature;pipelineSignature=pipelineKey;if(changed)onPipelineChange?.();}
     onState(run?.status==='running'?'thinking':null,resolveAgentActivity(snapshot),snapshot);
     $('#chat-form button[type="submit"]').disabled=sending||$('#chat-form').dataset.uploading==='true'||run?.status==='running';
-    const companyMode=companyChatActive();host.hidden=companyMode;
-    if(companyMode){$('#conversation').hidden=false;return;}
+    host.hidden=false;
     if(!run)return;
     $('#welcome').hidden=true;$('#conversation').hidden=true;
     const key=JSON.stringify([run,messages,steps,snapshot.pdfs]);if(signature===key)return;signature=key;

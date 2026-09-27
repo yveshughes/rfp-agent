@@ -15,7 +15,7 @@ This is the starting point for maintaining Billy. Reviewed against implementatio
 - The frontend is plain ES modules in `site/app/`. There is no React app, npm build, Redis, vector database or separate worker service.
 - `app/server.py` composes FastAPI routes, browser state, evidence storage and background source watchers. Importing it creates runtime directories and tables: set `BILLY_DATA_DIR` **before import**.
 - `app/workspaces.py` loads a separate server module/runtime per company. The process shares the source directory, opportunity catalog and inference budget ledger. Company databases, files, browser contexts, chat and selected RFPs stay separate.
-- `app/agent.py` is the main Vultr inference tool loop. `app/discussion.py` and `app/company.py` also contain older guided conversations and optional Meta adapters. Do not assume changing one path changes the other.
+- `app/agent.py` is the only conversation path: the Vultr inference tool loop. `app/company.py` holds the profile schema, direct edits, evidence links and follow-up tasks. `app/discussion.py` records agenda opening questions and the optional Meta push-to-talk transcription; it has no model reply of its own.
 - Global Autopilot uses a persistent sequential queue. A selected RFP appears in My RFPs during Researching; saved drafts/PDFs advance its preparation status. Human review does not block the next item.
 - State is durable; execution is in-process. Source watchers restart with the service. Agent runs interrupted by a restart require Continue; an exhausted Autopilot queue does not automatically wake for newly discovered work.
 - This is for one trusted owner over a private connection. Workspace IDs and the write header are not authentication.
@@ -28,9 +28,9 @@ This is the starting point for maintaining Billy. Reviewed against implementatio
 | Source extraction, feed fit, watch scans | `opportunities.py` | `tests/test_opportunities.py` |
 | Shared imports and reversible visibility | `opportunity_imports.py` | `tests/test_opportunity_imports.py` |
 | Original RFP source/linked files | `rfp_research.py`, `server.py` | Source allowlist and citation tests |
-| Company facts, website evidence, attachments | `company.py`, `company_web.py`, `company_attachments.py` | Company, attachment and website tests |
+| Company facts, direct edits, website evidence, attachments | `company.py`, `company_web.py`, `company_attachments.py` | Company, attachment and website tests |
 | Draft versions, progress, review PDF | `rfp_workspace.py`, `response_pdf.py`, `response_review.py` | Response and Autopilot tests |
-| Discussion agenda and concise replies | `discussion_agenda.py`, `discussion.py`, `agent.py` | Both guided and main-chat paths |
+| Discussion agenda and concise replies | `discussion_agenda.py`, `discussion.py`, `agent.py` | Opening question must reach the agent's context |
 | Workspace navigation and state refresh | `../site/app/workspace.js` | Browser smoke test; preserve unsent drafts |
 | Continuous response canvas | `../site/app/response-canvas.js`, `../site/app/rfp-detail.js` | Version conflicts, partial saves and checklist preservation |
 | Queue controls, review dialog | `../site/app/autopilot.js` | Continuous/global versus single-target behavior |

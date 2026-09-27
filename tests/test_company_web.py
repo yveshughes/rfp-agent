@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 
 os.environ.setdefault('BILLY_DATA_DIR',tempfile.mkdtemp(prefix='billy-web-test-'))
 from app import server
-from app.company import ProfileAnswer
+from app.company import ProfileEdit
 from app.company_web import CompanyWebsite
 
 class CompanyWebTests(unittest.IsolatedAsyncioTestCase):
@@ -36,7 +36,7 @@ class CompanyWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(profile['facts']['experience.services']['source_url'],self.captured['url'])
         self.assertEqual(profile['facts']['experience.services']['source_quote'],self.captured['text'])
         await self.web.read('web-test','https://example.com/services')
-        await server.company_chat(ProfileAnswer(field='experience.services',text='Updated by owner',action='edit'))
+        await server.company_edit('experience.services',ProfileEdit(value='Updated by owner'))
         self.assertNotIn('source_url',(await server.company_profile())['facts']['experience.services'])
 
     async def test_unapproved_urls_and_fabricated_quotes_rejected(self):

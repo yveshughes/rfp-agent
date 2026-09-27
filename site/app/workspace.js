@@ -4,11 +4,11 @@ import {createDocumentReview} from './document-review.js?v=1';
 import {createChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=website-prompt-1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
-import {createAgentChat} from './agent-chat.js?v=autopilot-queue-1';
+import {createAgentChat} from './agent-chat.js?v=single-chat-1';
 import {createOpportunityFeed} from './opportunities.js?v=response-canvas-1';
-import {createDiscussion} from './discuss.js?v=voice-agenda-1';
+import {createDiscussion} from './discuss.js?v=agenda-opener-1';
 import {createRFPDetail} from './rfp-detail.js?v=response-canvas-1';
-import {createCompanyProfile} from './company.js?v=company-attachments-1';
+import {createCompanyProfile} from './company.js?v=direct-edits-1';
 import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=phone-conversation-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -57,16 +57,16 @@ const updateBillyMotion=(forcePanel=false)=>{
 setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],onSaved:result=>{loadRFPs();if(editingRFP===result.rfp.id)autopilot?.setRFP(result.rfp);},openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),showCompany:()=>showView('company'),openDocument});
-const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
-const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();await discussionAgenda.refresh(true);}});
-const discussionAgenda=createDiscussionAgenda({api,esc,onSelect:item=>discussion.open(item.context,item.label,'start',item.question)});
+const companyProfile=createCompanyProfile({api,esc,toast,showView,openDocument,getState:()=>state,openDiscussion:(context,label)=>discussion.open(context,label)});
+const discussion=createDiscussion({api,esc,toast,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();}});
+const discussionAgenda=createDiscussionAgenda({api,esc,onSelect:item=>discussion.open(item.context,item.label,item.question)});
 let chatSuggestions,autopilot;
 const documentReview=createDocumentReview({esc,resourceURL:path=>API+path,openDocument,openBrowser:expandBrowser});
 let reviewSnapshot=null;
-const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},importDocument:()=>companyProfile.documents()});
 autopilot=createAutopilot({api,esc,toast,storageKey,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
-chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
+chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {
   const opts = data === undefined ? {} : {method:'POST',headers:{'X-Billy-Client':'workspace'}};
@@ -98,7 +98,6 @@ $('#collapse-nav').onclick=()=>{const collapsed=$('#workspace').classList.toggle
 function selectPanel(name){if(name==='discuss'&&document.querySelector('[data-panel="discuss"]').hidden)name='work';document.querySelectorAll('[data-panel]').forEach(x=>x.setAttribute('aria-selected',String(x.dataset.panel===name)));for(const panel of ['discuss','work','decisions'])$('#panel-'+panel).hidden=name!==panel;}
 document.querySelectorAll('[data-panel]').forEach(button=>button.onclick=()=>selectPanel(button.dataset.panel));
 function addMessage(text, user=false, buttons=[]) {
-  if(companyProfile.hasChat()){$('#conversation').hidden=false;if($('#agent-conversation'))$('#agent-conversation').hidden=true;}
   $('#welcome').hidden=true;
   const div=document.createElement('div');div.className='message'+(user?' user':'');
   if(!user){const label=document.createElement('span');label.className='message-name';label.textContent='BILLY';div.append(label);}
@@ -110,7 +109,7 @@ function addMessage(text, user=false, buttons=[]) {
 try { const messages=JSON.parse(sessionStorage.getItem(storageKey('chat-text'))||'[]');messages.forEach(m=>addMessage(m.text,m.user)); } catch{}
 async function sendContextualMessage(text,context={},documents=[]) {
   const sent=await agentChat.send(text,context,documents);
-  if(sent){$('#company-chat-exit').click();await agentChat.poll();}
+  if(sent)await agentChat.poll();
   return sent;
 }
 $('#chat-form').onsubmit=async e=>{
@@ -121,7 +120,7 @@ $('#chat-form').onsubmit=async e=>{
   try{
     const documents=chatAttachments.hasFiles()?await chatAttachments.upload():[];
     const text=input||'Use these attachments to update my company profile with supported details.';
-    const sent=companyProfile.hasChat()?await sendContextualMessage(text,{field:companyProfile.chatContext(),source:'company'},documents):await agentChat.send(text,undefined,documents);
+    const sent=await agentChat.send(text,undefined,documents);
     if(sent){$('#chat-input').value='';chatAttachments.clear();}
   }catch(error){toast(error.message);}
   finally{form.dataset.uploading='false';$('#chat-input').disabled=false;chatAttachments.setBusy(false);form.querySelector('button[type="submit"]').disabled=agentChat.getSnapshot()?.run?.status==='running';chatSuggestions.update();}

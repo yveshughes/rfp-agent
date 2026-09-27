@@ -36,7 +36,7 @@ This is an implementation handoff, not a promise that planned integrations exist
 - Browser controls defend against many unwanted writes, but GET side effects and custom authenticated portals need targeted validation. No universal hostile-browser isolation is claimed.
 - Prior successful receipts are preserved, but arbitrary failure boundaries are not guaranteed exactly-once execution. Inspect saved state before retrying.
 - The generated PDF uses ReportLab Times-Roman. Exact agency typography, signatures, certifications, forms and attachments still require review.
-- Guided company/discussion state and main-agent chat are separate implementations. Consolidation should preserve provenance and the user's current conversation scope.
+- The older guided company/discussion conversation was removed on September 26, 2026. Agenda topics open Billy's question and hand the answer to main chat; profile edits, evidence links and follow-up tasks remain direct API actions.
 - Historical local demo plans contain proposed features and account details. They are private records, not deployment instructions for a new engineer.
 
 ## Change documentation with code

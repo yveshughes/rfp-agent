@@ -1,58 +1,34 @@
+import io
 import os
 import tempfile
+import time
 import unittest
+import uuid
 os.environ.setdefault('BILLY_DATA_DIR',tempfile.mkdtemp(prefix='billy-company-test-'))
+from pypdf import PdfWriter
 from app import server
-from app.company import ProfileAnswer, ProfileEvidence, ProfileTaskUpdate
+from app.company import ProfileEdit, ProfileEvidence, ProfileTaskUpdate
 
 class CompanyTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         with server.db() as c:
-            for table in ['company_facts','company_messages','company_dialogue','company_tasks']:
+            for table in ['company_facts','company_messages','company_tasks']:
                 c.execute('DELETE FROM '+table)
 
-    async def answer(self,text,field='insurance.coverage',action='answer'):
-        return await server.company_chat(ProfileAnswer(field=field,text=text,action=action))
+    async def edit(self,field,value):
+        return await server.company_edit(field,ProfileEdit(value=value))
 
-    async def test_no_research_requires_acceptance_and_persists(self):
-        await self.answer('example',action='insurance_example')
-        result=await self.answer('No')
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['status'],'Gap reported')
-        self.assertEqual(result['profile']['tasks'],[])
-        await self.answer('Maybe later')
-        self.assertEqual((await server.company_profile())['tasks'],[])
-        result=await self.answer('Yes')
-        self.assertEqual(result['profile']['tasks'][0]['kind'],'research')
-        self.assertEqual(result['profile']['tasks'][0]['status'],'Queued')
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['value'],'No')
-        # Follow-ups deduplicate while queued, even in a later conversation.
-        await self.answer('No');await self.answer('Yes')
-        tasks=(await server.company_profile())['tasks']
-        self.assertEqual(len(tasks),1)
-        await server.company_task(tasks[0]['id'],ProfileTaskUpdate(status='Done'))
-        self.assertEqual((await server.company_profile())['tasks'][0]['status'],'Done')
-        self.assertEqual((await server.company_profile())['facts']['insurance.coverage']['status'],'Gap reported')
+    async def test_direct_edit_saves_clears_and_records_history(self):
+        result=await self.edit('company.legal_name','  Example Agency ')
+        fact=result['facts']['company.legal_name']
+        self.assertEqual((fact['value'],fact['status']),('Example Agency','Reported by you'))
+        self.assertEqual([m['text'] for m in result['messages'] if m['field']=='company.legal_name'],['Direct edit: Example Agency'])
+        result=await self.edit('company.legal_name','')
+        self.assertNotIn('company.legal_name',result['facts'])
+        self.assertEqual(result['messages'][-1]['text'],'Cleared this company detail.')
+        with self.assertRaises(server.HTTPException):await self.edit('made.up','x')
 
-    async def test_freeform_negative_and_uncertain_answers(self):
-        result=await self.answer('No, we don’t have coverage')
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['status'],'Gap reported')
-        self.assertEqual(result['profile']['tasks'],[])
-        await self.answer('Not now')
-        result=await self.answer("I'm not sure whether we have $5M")
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['status'],'Unknown')
-        self.assertEqual(result['profile']['tasks'][0]['kind'],'verify')
-
-    async def test_yes_and_unsure_never_verify(self):
-        for text,status in [('Yes','Reported by you'),('Not sure','Unknown')]:
-            result=await self.answer(text)
-            self.assertEqual(result['profile']['facts']['insurance.coverage']['status'],status)
-            self.assertEqual(result['profile']['tasks'][0]['kind'],'verify')
-        self.assertEqual(len(result['profile']['tasks']),1)
-        self.assertIn('verification task',result['reply'])
-
-    async def test_evidence_validates_page_and_correction_invalidates_evidence(self):
-        import io
-        from pypdf import PdfWriter
+    async def test_evidence_validates_page_and_a_correction_drops_the_link(self):
         writer=PdfWriter();writer.add_blank_page(width=100,height=100)
         out=io.BytesIO();writer.write(out)
         doc=await server.store_pdf(out.getvalue(),'certificate.pdf')
@@ -62,32 +38,28 @@ class CompanyTests(unittest.IsolatedAsyncioTestCase):
         result=await server.company_evidence(ProfileEvidence(**req,page=1))
         self.assertEqual(result['facts']['insurance.limits']['status'],'Evidence linked')
         self.assertEqual(result['facts']['insurance.limits']['document_id'],doc['id'])
-        result=await self.answer('$2M per occurrence',field='insurance.limits',action='edit')
-        self.assertEqual(result['profile']['facts']['insurance.limits']['document_id'],doc['id'])
-        result=await self.answer('Actually $1M',field='insurance.limits',action='edit')
-        self.assertEqual(result['profile']['facts']['insurance.limits']['status'],'Reported by you')
-        self.assertIsNone(result['profile']['facts']['insurance.limits']['document_id'])
+        # Re-saving the same text keeps the evidence; a different statement never inherits it.
+        result=await self.edit('insurance.limits','$2M per occurrence')
+        self.assertEqual(result['facts']['insurance.limits']['document_id'],doc['id'])
+        result=await self.edit('insurance.limits','Actually $1M')
+        self.assertEqual(result['facts']['insurance.limits']['status'],'Reported by you')
+        self.assertIsNone(result['facts']['insurance.limits']['document_id'])
         with self.assertRaises(server.HTTPException):
             await server.company_evidence(ProfileEvidence(**{**req,'document_id':'missing'},page=1))
 
-    async def test_direct_edits_do_not_accept_pending_research_or_queue_work(self):
-        await self.answer('No')
-        result=await self.answer('Yes',action='edit')
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['value'],'Yes')
-        self.assertEqual(result['profile']['tasks'],[])
+    async def test_follow_up_status_changes_and_queue_uniqueness(self):
+        first,second=uuid.uuid4().hex,uuid.uuid4().hex
         with server.db() as c:
-            self.assertEqual(c.execute('SELECT stage FROM company_dialogue WHERE field=?',('insurance.coverage',)).fetchone()['stage'],'')
-        result=await self.answer('',action='edit')
-        self.assertNotIn('insurance.coverage',result['profile']['facts'])
-
-    async def test_field_conversations_are_scoped_and_do_not_infer_unknowns(self):
-        await self.answer('No')
-        await self.answer('Example Agency',field='company.legal_name')
-        result=await self.answer('Not now')
-        self.assertEqual(result['profile']['facts']['company.legal_name']['value'],'Example Agency')
-        self.assertEqual(result['profile']['facts']['insurance.coverage']['value'],'No')
-        self.assertEqual(result['profile']['tasks'],[])
-        with self.assertRaises(server.HTTPException):await self.answer('x',field='bad')
-        with self.assertRaises(server.HTTPException):await self.answer('   ')
+            c.execute('INSERT INTO company_tasks VALUES (?,?,?,?,?,?)',(first,'insurance.coverage','research','Research liability options','Queued',time.time()))
+            c.execute('INSERT INTO company_tasks VALUES (?,?,?,?,?,?)',(second,'insurance.coverage','research','Older research task','Done',time.time()))
+        with self.assertRaises(server.HTTPException):
+            await server.company_task(second,ProfileTaskUpdate(status='Queued'))
+        result=await server.company_task(first,ProfileTaskUpdate(status='Done'))
+        self.assertEqual({t['id']:t['status'] for t in result['tasks']},{first:'Done',second:'Done'})
+        result=await server.company_task(second,ProfileTaskUpdate(status='Queued'))
+        self.assertEqual(next(t for t in result['tasks'] if t['id']==second)['status'],'Queued')
+        self.assertEqual(result['messages'][-1]['text'],'Marked follow-up queued: Older research task')
+        with self.assertRaises(server.HTTPException):await server.company_task('missing',ProfileTaskUpdate(status='Done'))
+        with self.assertRaises(server.HTTPException):await server.company_task(first,ProfileTaskUpdate(status='Later'))
 
 if __name__=='__main__':unittest.main()

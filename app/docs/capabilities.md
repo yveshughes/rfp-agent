@@ -9,12 +9,12 @@ Implementation baseline: `bab7378`. “Implemented” describes available code, 
 | Monitoring | Check watched sources when due; scheduler checks every 15 seconds, scans approximately hourly when browser permits | No external alerts; failures/partial coverage visible; not every portal supported |
 | Opportunity catalog | Shared import batches, company-specific lexical ranking, reversible administrative visibility | Imported records unverified; import does not fetch originals; admin API only |
 | My RFPs | Pursued/manual records, sortable/searchable status table, original documents and draft workspace | Status is preparation/workflow state, not proof of submission or award |
-| Company knowledge | Manual facts; model extraction with exact document/page or website quotations; user-reported statements | Historical claims remain historical; citations do not establish truth/current eligibility |
+| Company knowledge | Direct edits; evidence links to saved pages; model extraction with exact document/page or website quotations; user-reported statements | Historical claims remain historical; citations do not establish truth/current eligibility |
 | Chat attachments | Stage up to five files, drop/paste images, upload and retain originals, attach to company profile/chat | PDF, PNG/JPEG/WebP, DOCX, UTF-8 TXT/CSV/MD; 25 MB each; OCR may be imperfect |
 | Document reading | PDF extraction, selected page ranges, first-page thumbnail, reviewed-page progress in Activity | Up to 100 extracted PDF pages; not visual model reasoning; scanned PDFs have no built-in OCR pass |
 | Main chat | Persistent Vultr model/tool loop; cited facts/analysis, concise completion summaries and linked RFP cards | Model output still needs review; no arbitrary shell or external write tool |
 | Website learning | Saved/user-supplied company site, same-site links, saved URL/quotation provenance | Up to four pages per turn; claims are attributed, not verified |
-| Discussing | Checklist of open company/RFP topics; repeated topic clicks reuse opening question | Derived from current saved facts/analysis, not a generic task manager |
+| Discussing | Checklist of open company/RFP topics; a topic opens Billy's question and the answer is sent to main chat with that context | Derived from current saved facts/analysis, not a generic task manager |
 | Autopilot | Global sequential preparation of suitable RFPs; pause/resume; single-RFP mode in detail view | User starts it; stops when exhausted/blocked or on execution/budget errors; no automatic restart after exhaustion |
 | Drafts | Ready for review opens one continuous editable response canvas; three versioned sections and manual review checklists | No auto-checking of review items; unsupported details stay explicit placeholders |
 | Review PDF | Immutable PDF with page count/section versions; stale detection after edits | Review copy, not a validated submission package; exact fonts/forms/attachments require checking |
