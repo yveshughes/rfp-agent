@@ -9,7 +9,7 @@ import {createOpportunityFeed} from './opportunities.js?v=response-canvas-1';
 import {createDiscussion} from './discuss.js?v=voice-agenda-1';
 import {createRFPDetail} from './rfp-detail.js?v=response-canvas-1';
 import {createCompanyProfile} from './company.js?v=company-attachments-1';
-import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=waiting-wave-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=phone-conversation-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);

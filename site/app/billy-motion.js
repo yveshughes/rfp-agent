@@ -1,6 +1,6 @@
 export const motions = {
   autopilot: {name:'Autopilot', description:'Billy works through a response at his desk, ready to bring it back for your review.'},
-  voice: {name:'On the phone', description:'Billy holds his corded desk phone during listening, transcription, and spoken replies.'},
+  voice: {name:'On the phone', description:'Billy listens, talks, and nods while holding his corded desk phone.'},
   discussing: {name:'Discussing', description:'Billy is messaging with you and keeping track of the next steps.'},
   snoozing: {name:'Snoozing', description:'A little rest between tasks. Billy wakes when there’s work to do.'},
   idle: {name:'Idle', description:'Billy’s empty desk, grayed out while he is away.'},
@@ -52,7 +52,6 @@ export function createBillyMotion() {
   const video=document.querySelector('#billy-video');
   const profile=document.querySelector('.billy-profile');
   const sleeper=document.querySelector('#billy-snooze');
-  const phone=document.querySelector('#billy-phone');
   const desk=document.querySelector('#billy-idle-desk');
   const button=document.querySelector('#billy-motion');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
@@ -62,7 +61,7 @@ export function createBillyMotion() {
   let current=null, tone='offline';
   const sync=()=>{
     const playing=enabled && !document.hidden && tone!=='offline';
-    if(playing && !['idle','snoozing','voice'].includes(current)) video.play().catch(()=>{}); else video.pause();
+    if(playing && !['idle','snoozing'].includes(current)) video.play().catch(()=>{}); else video.pause();
     button.hidden=current==='idle';
     profile.dataset.animate=playing?'running':'paused';
     button.textContent=enabled?'Ⅱ':'▷';
@@ -88,11 +87,10 @@ export function createBillyMotion() {
         current=resolved.motion;
         delete profile.dataset.mediaError;
         const asleep=current==='snoozing';
-        const onPhone=current==='voice';
         const idle=current==='idle';
-        desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;
-        if(!idle&&!asleep&&!onPhone){
-        const asset=current==='waiting'?'waiting-wave':['discussing','autopilot'].includes(current)?'researching':current;
+        desk.hidden=!idle;sleeper.hidden=!asleep;video.hidden=idle||asleep;
+        if(!idle&&!asleep){
+        const asset=current==='voice'?'voice-conversation':current==='waiting'?'waiting-wave':['discussing','autopilot'].includes(current)?'researching':current;
         video.poster=`/assets/billy/${asset}.jpg`;
         video.setAttribute('aria-label',`Billy: ${motions[current].name.toLowerCase()}`);
         video.src=`/assets/billy/${asset}.mp4`;
@@ -111,7 +109,6 @@ export function setupMotionPreview() {
   const video=document.querySelector('#billy-preview-video');
   const stage=document.querySelector('#billy-preview-stage');
   const sleeper=document.querySelector('#billy-preview-snooze');
-  const phone=document.querySelector('#billy-preview-phone');
   const desk=document.querySelector('#billy-preview-idle-desk');
   const reduced=matchMedia('(prefers-reduced-motion: reduce)');
   let enabled=!reduced.matches;
@@ -126,11 +123,11 @@ export function setupMotionPreview() {
   function select(name){
     document.querySelectorAll('[data-motion-preview]').forEach(btn=>btn.setAttribute('aria-pressed',String(btn.dataset.motionPreview===name)));
     document.querySelector('#billy-preview-description').textContent=motions[name].description;
-    const asleep=name==='snoozing',onPhone=name==='voice',idle=name==='idle';
-    stage.dataset.state=name;desk.hidden=!idle;sleeper.hidden=!asleep;phone.hidden=!onPhone;video.hidden=idle||asleep||onPhone;toggle.hidden=!asleep&&!onPhone;
+    const asleep=name==='snoozing',idle=name==='idle';
+    stage.dataset.state=name;desk.hidden=!idle;sleeper.hidden=!asleep;video.hidden=idle||asleep;toggle.hidden=!asleep;
     sync();
-    if(idle||asleep||onPhone){video.pause();return;}
-    const asset=name==='waiting'?'waiting-wave':name==='discussing'?'researching':name;
+    if(idle||asleep){video.pause();return;}
+    const asset=name==='voice'?'voice-conversation':name==='waiting'?'waiting-wave':name==='discussing'?'researching':name;
     video.poster=`/assets/billy/${asset}.jpg`;
     video.src=`/assets/billy/${asset}.mp4`;
     video.load();

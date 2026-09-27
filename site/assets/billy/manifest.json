@@ -27,10 +27,12 @@
       "sha256": "278da4e35e541334ae34949ecc6b01621d3bbca34f17d306bd8dbfd5247f95ef"
     },
     "voice": {
-      "file": "voice.png",
-      "generator": "Built-in image generation",
-      "animation": "CSS breathing loop; no generated video",
-      "sha256": "4bb7050176946551293faadf043f1402ee1af5109e4fbcf90b0ecb2222645ef4"
+      "file": "voice-conversation.mp4",
+      "poster": "voice-conversation.jpg",
+      "reference": "voice.png",
+      "generator": "Higgsfield \u00b7 Seedance 2.0",
+      "animation": "Muted listening, talking and nodding loop; illustrative, not lip-synced",
+      "sha256": "bb6586cd064d1e93e7eb39bd3615b185bfcfc5b09a51eb1d70833f3e2c77d6db"
     },
     "snoozing": {
       "file": "idle.jpg",

@@ -38,7 +38,7 @@ test('explicit pause survives activity, visibility and OS preference changes',()
   const reduced={matches:false,addEventListener:(name,fn)=>listeners.motion=fn};
   const video={play:()=>{plays++;return Promise.resolve();},pause:()=>{},load:()=>{},setAttribute:()=>{},addEventListener:()=>{}};
   const button={setAttribute:()=>{}};
-  const nodes={'#billy-video':video,'#billy-idle-desk':{hidden:true},'#billy-phone':{hidden:true},'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
+  const nodes={'#billy-video':video,'#billy-idle-desk':{hidden:true},'#billy-snooze':{hidden:true},'.billy-profile':{dataset:{}},'#billy-motion':button,'#billy-status':{},'#billy-state-label':{},'#status-dot':{}};
   try{
     globalThis.document={hidden:false,querySelector:s=>nodes[s],addEventListener:(name,fn)=>listeners[name]=fn};
     globalThis.localStorage={getItem:()=>preference,setItem:(_,value)=>{preference=value;}};
@@ -58,7 +58,12 @@ test('explicit pause survives activity, visibility and OS preference changes',()
     assert.equal(video.src,'/assets/billy/researching.mp4');
     assert.equal(nodes['#billy-state-label'].textContent,'Autopilot');
     assert.equal(nodes['#billy-snooze'].hidden,true);
+    motion.update(ready,{discussionState:'listening'});
+    assert.equal(video.src,'/assets/billy/voice-conversation.mp4');
+    assert.equal(video.hidden,false);
+    assert.equal(video.playbackRate,1);
     button.onclick();assert.equal(preference,'off');const before=plays;
+    motion.update(ready,{discussionState:'speaking'});assert.equal(plays,before);
     motion.update(ready,{autopilotRunning:true});assert.equal(plays,before);
     motion.update({...ready,document_jobs:1});
     assert.equal(video.playbackRate,1);

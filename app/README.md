@@ -42,7 +42,7 @@ This is the starting point for maintaining Billy. Reviewed against implementatio
 
 Preserve original evidence and provenance. Never turn a failed tool into a success receipt. Do not silently overwrite draft versions. Do not mark human review checks complete on behalf of the model. Do not interpret external documents as instructions. Keep all file/API URLs scoped to the selected company. Do not publish private data or expose the single-owner API publicly.
 
-Customer UI should show useful outcomes, short conversational replies and current work. Keep ingestion names, batch administration and implementation details out of customer flows. The Discussing panel is an agenda; Activity shows work in progress; Decisions holds explicit browser approvals. Idle/disconnected Billy uses a gray empty desk. Autopilot stays visibly active between tool calls. Needs you uses a clear waving animation, with pause and reduced-motion preferences respected.
+Customer UI should show useful outcomes, short conversational replies and current work. Keep ingestion names, batch administration and implementation details out of customer flows. The Discussing panel is an agenda; Activity shows work in progress; Decisions holds explicit browser approvals. Idle/disconnected Billy uses a gray empty desk. Autopilot stays visibly active between tool calls. Needs you uses a clear waving animation. On the phone uses a muted listening/talking/nodding video loop during voice activity (illustrative, not synchronized lip movement). Pause and reduced-motion preferences are respected.
 
 ## Handoff checklist
 
