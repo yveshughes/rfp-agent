@@ -13,6 +13,28 @@ class FakeResponse(io.BytesIO):
     def __exit__(self,*args):self.close()
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_voice_sample_is_wav_cached_per_voice_and_validated(self):
+        import base64,wave,shutil
+        from app.voice import VoiceSettings
+        shutil.rmtree(server.DATA/'voice-samples',ignore_errors=True)
+        with self.assertRaises(server.HTTPException) as e:await server.voice_sample(VoiceSettings(voice='Puck'))
+        self.assertEqual(e.exception.status_code,503)
+        calls=[]
+        def fake_urlopen(req,timeout=0):
+            calls.append(json.loads(req.data))
+            pcm=b'\x00\x10'*2400
+            return FakeResponse(json.dumps({'candidates':[{'content':{'parts':[{'inlineData':{'mimeType':'audio/L16;codec=pcm;rate=24000','data':base64.b64encode(pcm).decode()}}]}}]}).encode())
+        with patch.dict(os.environ,{'GEMINI_API_KEY':'secret-key'}),patch('app.voice.urllib.request.urlopen',side_effect=fake_urlopen):
+            with self.assertRaises(server.HTTPException):await server.voice_sample(VoiceSettings(voice='Robot'))
+            first=await server.voice_sample(VoiceSettings(voice='Puck'))
+            second=await server.voice_sample(VoiceSettings(voice='Puck'))
+        self.assertEqual(first.media_type,'audio/wav')
+        with wave.open(io.BytesIO(first.body)) as w:self.assertEqual((w.getframerate(),w.getnchannels(),w.getnframes()),(24000,1,2400))
+        self.assertEqual(len(calls),1)   # second request served from the cache
+        self.assertEqual(calls[0]['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Puck')
+        self.assertTrue((server.DATA/'voice-samples'/'Puck.wav').is_file())
+        self.assertEqual(second.body,first.body)
+
     def setUp(self):
         self.env=patch.dict(os.environ,{'GEMINI_API_KEY':'','BILLY_GEMINI_LIVE_MODEL':'','BILLY_GEMINI_VOICE':''});self.env.start()
         self.addCleanup(self.env.stop)

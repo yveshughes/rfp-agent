@@ -4,16 +4,25 @@ Gemini is Billy's ears and mouth only. It gets two functions, ask_billy and
 billy_reply, which the browser executes against this workspace's agent API.
 GLM on Vultr remains the only agent; the Gemini API key never leaves the server.
 """
+import base64
+import io
 import json
 import os
+import re
+import wave
+from pathlib import Path
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 TOKEN_URL = 'https://generativelanguage.googleapis.com/v1beta/auth_tokens'
+TTS_URL = 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
+SAMPLE_MODEL = 'gemini-3.8-flash-lite-tts'
+SAMPLE_TEXT = "Hi, I'm Billy. I found two RFPs that fit your business and drafted a response for your review."
 # Ephemeral tokens open sessions only on the constrained endpoint, passed as access_token.
 SOCKET_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 DEFAULT_MODEL = 'gemini-3.8-live'
@@ -83,6 +92,23 @@ def setup_config(read=NO_SETTING):
             'sessionResumption': {}}
 
 
+def request_sample(voice):
+    """One short Billy line in the given voice, as 24 kHz mono WAV bytes."""
+    body = {'contents': [{'parts': [{'text': SAMPLE_TEXT}]}],
+            'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}}}
+    req = urllib.request.Request(TTS_URL.format(model=SAMPLE_MODEL), data=json.dumps(body).encode(),
+                                 headers={'x-goog-api-key': gemini_key(), 'Content-Type': 'application/json'})
+    with urllib.request.urlopen(req, timeout=40) as response:
+        result = json.loads(response.read(8 * 1024 * 1024))
+    part = result['candidates'][0]['content']['parts'][0]['inlineData']
+    rate = int((re.search(r'rate=(\d+)', part.get('mimeType', '')) or [None, 24000])[1])
+    pcm = base64.b64decode(part['data'])
+    out = io.BytesIO()
+    with wave.open(out, 'wb') as wav:
+        wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(rate); wav.writeframes(pcm)
+    return out.getvalue()
+
+
 def request_token(body):
     req = urllib.request.Request(TOKEN_URL, data=json.dumps(body).encode(),
                                  headers={'x-goog-api-key': gemini_key(), 'Content-Type': 'application/json'})
@@ -90,7 +116,8 @@ def request_token(body):
         return json.loads(response.read(64 * 1024))
 
 
-def register_voice(app, event, read=NO_SETTING, save=None):
+def register_voice(app, event, read=NO_SETTING, save=None, data=None):
+    samples = Path(data) / 'voice-samples' if data else None
     @app.get('/api/voice/config')
     async def config():
         return voice_config(read)
@@ -106,6 +133,27 @@ def register_voice(app, event, read=NO_SETTING, save=None):
         save('voice', name)
         event('voice', 'Billy’s voice changed', name or 'Server default')
         return voice_config(read)
+
+    @app.post('/api/voice/sample')
+    async def sample(req: VoiceSettings):
+        """Play a short sample of a voice. Generated once per voice and cached on disk."""
+        name = req.voice.strip() or live_voice(read)
+        if name not in VOICE_NAMES:
+            raise HTTPException(400, 'Choose one of the listed voices.')
+        if not gemini_key():
+            raise HTTPException(503, 'Live voice is not connected. Add a Gemini API key on the server.')
+        cached = samples / f'{name}.wav' if samples else None
+        if cached and cached.is_file():
+            return Response(cached.read_bytes(), media_type='audio/wav', headers={'Cache-Control': 'private, max-age=86400'})
+        try:
+            import asyncio
+            audio = await asyncio.to_thread(request_sample, name)
+        except Exception:
+            raise HTTPException(502, 'Gemini could not produce a voice sample right now. Try again in a moment.') from None
+        if cached:
+            samples.mkdir(parents=True, exist_ok=True)
+            cached.write_bytes(audio)
+        return Response(audio, media_type='audio/wav', headers={'Cache-Control': 'private, max-age=86400'})
 
     @app.post('/api/voice/token')
     async def token():
@@ -136,4 +184,4 @@ def register_voice(app, event, read=NO_SETTING, save=None):
                 'audio': {'input': {'mime_type': 'audio/pcm;rate=16000', 'rate': 16000}, 'output': {'rate': 24000}},
                 'note': 'The token opens one Live session. Function calls run in the browser against this workspace only.'}
 
-    return config, token, settings
+    return config, token, settings, sample

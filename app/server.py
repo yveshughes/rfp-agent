@@ -538,7 +538,7 @@ from app.discussion import register_discussion
 discuss, discussion_config, transcribe = register_discussion(app, db, require_rfp)
 
 from app.voice import register_voice
-voice_config, voice_token, voice_settings = register_voice(app, event, read, save)
+voice_config, voice_token, voice_settings, voice_sample = register_voice(app, event, read, save, DATA)
 
 from app.opportunity_imports import register_imports
 import_batches, import_opportunities, import_visibility, sync_catalog = register_imports(app, db, catalog_db)
