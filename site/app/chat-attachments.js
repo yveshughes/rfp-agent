@@ -51,5 +51,5 @@ export function createChatAttachments({api,esc,toast,onSaved}){
 }
 
 export function renderChatAttachments(files,{esc,resourceURL}){
-  return (files||[]).length?'<div class="sent-attachments">'+files.map(file=>`<button type="button" class="sent-attachment" data-chat-document="${esc(file.id)}">${file.media_type?.startsWith('image/')?`<img src="${esc(resourceURL('/api/documents/'+encodeURIComponent(file.id)+'/preview'))}" alt="Preview of ${esc(file.name)}" loading="lazy">`:'<span aria-hidden="true">▤</span>'}<span><strong>${esc(file.name)}</strong><small>Saved to Company Profile · Open ↗</small></span></button>`).join('')+'</div>':'';
+  return (files||[]).length?'<div class="sent-attachments">'+files.map(file=>`<button type="button" class="sent-attachment" data-chat-document="${esc(file.id)}">${(file.media_type==='application/pdf'||file.media_type?.startsWith('image/'))?`<img src="${esc(resourceURL('/api/documents/'+encodeURIComponent(file.id)+'/preview'))}" alt="Preview of ${esc(file.name)}" loading="lazy">`:'<span aria-hidden="true">▤</span>'}<span><strong>${esc(file.name)}</strong><small>Saved to Company Profile · Open ↗</small></span></button>`).join('')+'</div>':'';
 }

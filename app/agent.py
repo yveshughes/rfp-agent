@@ -149,10 +149,12 @@ class BillyAgent:
             attach_outcomes(c,messages,saved_steps)
             for message in messages:
                 message['attachments']=[dict(r) for r in c.execute('SELECT d.id,d.name,d.media_type,d.extraction_note FROM agent_message_documents a JOIN documents d ON d.id=a.document_id WHERE a.message_id=?',(message['id'],))]
+            from app.document_review import current_document_review
+            document_review=current_document_review(c,messages,saved_steps)
             steps=[{k:s[k] for k in ('id','tool','model','created')} for s in saved_steps]
             for message in messages:message.pop('request_id',None)
         with self.usage_db() as c:usage=c.execute('SELECT COALESCE(SUM(COALESCE(actual,reserved)),0) FROM agent_usage').fetchone()[0]
-        return {'config':model_config(),'run':run,'messages':messages,'steps':steps,'usage_usd':round(usage,6),'budget_usd':float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))}
+        return {'config':model_config(),'run':run,'messages':messages,'steps':steps,'document_review':document_review,'usage_usd':round(usage,6),'budget_usd':float(os.environ.get('BILLY_INFERENCE_BUDGET_USD','100'))}
 
     async def message(self,req:AgentTurn):
         if not req.text.strip():raise HTTPException(400,'Write a request for Billy.')

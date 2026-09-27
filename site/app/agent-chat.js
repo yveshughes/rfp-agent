@@ -1,4 +1,4 @@
-import {renderChatAttachments} from './chat-attachments.js?v=1';
+import {renderChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {resolveAgentActivity} from './billy-motion.js?v=document-review-2';
 import {renderChatOutcome} from './chat-cards.js?v=1';
 
@@ -9,7 +9,7 @@ export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,
   function render(){
     const {run,messages,steps,config}=snapshot;
     $('#chat-status').textContent=config.configured?`Billy · ${config.provider} · ${run?.model||config.model}`:'Billy needs a Vultr inference connection before he can work.';
-    onState(run?.status==='running'?'thinking':null,resolveAgentActivity(snapshot));
+    onState(run?.status==='running'?'thinking':null,resolveAgentActivity(snapshot),snapshot);
     $('#chat-form button[type="submit"]').disabled=sending||$('#chat-form').dataset.uploading==='true'||run?.status==='running';
     const companyMode=companyChatActive();host.hidden=companyMode;
     if(companyMode){$('#conversation').hidden=false;return;}
