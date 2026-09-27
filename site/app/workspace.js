@@ -76,9 +76,9 @@ async function loadVoiceSetting(){
   const select=$('#voice-select'),note=$('#voice-setting-note');
   try{
     const cfg=await api('/voice/config');
-    select.innerHTML='<option value="">Server default</option>'+cfg.voices.map(v=>`<option value="${esc(v.name)}">${esc(v.name)} · ${esc(v.style)}</option>`).join('');
+    select.innerHTML='<option value="">Default (Achird)</option>'+cfg.voices.map(v=>`<option value="${esc(v.name)}">${esc(v.name)} · ${esc(v.style)}</option>`).join('');
     select.value=cfg.voice_source==='workspace'?cfg.voice:'';select.disabled=!cfg.ready;$('#voice-sample').disabled=!cfg.ready;
-    note.textContent=cfg.ready?`Now: ${cfg.voice}${cfg.voice_source==='server'?' (server default)':cfg.voice_source==='default'?' (provider default)':''}. Talk to Billy to hear it.`:'Live voice is not connected on the server.';
+    note.textContent=cfg.ready?`Now: ${cfg.voice}${cfg.voice_source==='workspace'?' (chosen for this workspace)':' (default)'}. Press the speaker to hear it, or Talk to Billy.`:'Live voice is not connected on the server.';
   }catch{note.textContent='Could not load voice settings.';}
 }
 // A short Billy line in the chosen voice, generated once per voice by Gemini text-to-speech and cached on the server.
@@ -97,7 +97,7 @@ $('#voice-sample').onclick=async()=>{
   }catch(e){toast(e.message);samplePlayer=null;button.setAttribute('aria-pressed','false');}
   finally{button.disabled=false;}
 };
-$('#voice-select').onchange=async()=>{const select=$('#voice-select');select.disabled=true;try{await api('/voice/settings',{voice:select.value});toast(select.value?`Billy will use ${select.value} on the next call.`:'Billy will use the server default voice.');await liveVoice.configure();}catch(e){toast(e.message);}finally{await loadVoiceSetting();}};
+$('#voice-select').onchange=async()=>{const select=$('#voice-select');select.disabled=true;try{await api('/voice/settings',{voice:select.value});toast(select.value?`Billy will use ${select.value} on the next call.`:'Billy will use the default voice on the next call.');await liveVoice.configure();}catch(e){toast(e.message);}finally{await loadVoiceSetting();}};
 const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }

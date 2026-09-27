@@ -41,9 +41,9 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_config_and_token_require_a_server_key(self):
         cfg=await server.voice_config()
-        self.assertEqual({k:cfg[k] for k in ('provider','model','voice','voice_source','ready')},{'provider':'Gemini Live','model':'gemini-3.8-live','voice':'default','voice_source':'default','ready':False})
+        self.assertEqual({k:cfg[k] for k in ('provider','model','voice','voice_source','ready')},{'provider':'Gemini Live','model':'gemini-3.8-live','voice':'Achird','voice_source':'default','ready':False})
         self.assertEqual(len(cfg['voices']),30)
-        self.assertNotIn('speechConfig',voice.setup_config()['generationConfig'])
+        self.assertEqual(voice.setup_config()['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Achird')
         with patch.dict(os.environ,{'BILLY_GEMINI_VOICE':'Sulafat'}):
             self.assertEqual(voice.setup_config()['generationConfig']['speechConfig']['voiceConfig']['prebuiltVoiceConfig']['voiceName'],'Sulafat')
 

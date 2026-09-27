@@ -26,6 +26,7 @@ SAMPLE_TEXT = "Hi, I'm Billy. I found two RFPs that fit your business and drafte
 # Ephemeral tokens open sessions only on the constrained endpoint, passed as access_token.
 SOCKET_URL = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained'
 DEFAULT_MODEL = 'gemini-3.8-live'
+DEFAULT_VOICE = 'Achird'   # Billy's voice unless a server or workspace setting says otherwise
 TOKEN_LIFETIME = timedelta(minutes=30)
 NEW_SESSION_WINDOW = timedelta(minutes=2)
 
@@ -62,7 +63,7 @@ def live_voice(read=NO_SETTING):
     chosen = read('voice') or ''
     if chosen in VOICE_NAMES:
         return chosen
-    return (os.environ.get('BILLY_GEMINI_VOICE') or '').strip()
+    return (os.environ.get('BILLY_GEMINI_VOICE') or '').strip() or DEFAULT_VOICE
 
 
 def voice_source(read=NO_SETTING):
@@ -76,16 +77,15 @@ class VoiceSettings(BaseModel):
 
 
 def voice_config(read=NO_SETTING):
-    return {'provider': 'Gemini Live', 'model': live_model(), 'voice': live_voice(read) or 'default', 'voice_source': voice_source(read),
+    return {'provider': 'Gemini Live', 'model': live_model(), 'voice': live_voice(read), 'voice_source': voice_source(read),
             'voices': [{'name': n, 'style': st} for n, st in VOICES], 'ready': bool(gemini_key())}
 
 
 def setup_config(read=NO_SETTING):
     """The Live session setup locked into each token. Kept server-side as the single source of truth."""
-    voice = live_voice(read)
     return {'model': 'models/' + live_model(),
             'generationConfig': {'responseModalities': ['AUDIO'],
-                                 **({'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice}}}} if voice else {})},
+                                 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': live_voice(read)}}}},
             'systemInstruction': {'parts': [{'text': VOICE_INSTRUCTION}]},
             'tools': [{'functionDeclarations': FUNCTIONS}],
             'inputAudioTranscription': {}, 'outputAudioTranscription': {},
@@ -177,7 +177,7 @@ def register_voice(app, event, read=NO_SETTING, save=None, data=None):
         name = result.get('name') if isinstance(result, dict) else None
         if not isinstance(name, str) or not name.strip():
             raise HTTPException(502, 'Gemini returned no voice session token.')
-        event('voice', 'Voice session opened', f'Gemini Live · {live_model()} · {live_voice(read) or "default voice"} · token valid until {stamp(expires)}')
+        event('voice', 'Voice session opened', f'Gemini Live · {live_model()} · {live_voice(read)} · token valid until {stamp(expires)}')
         return {'token': name, 'model': live_model(), 'expires_at': stamp(expires), 'new_session_expires_at': stamp(new_session),
                 'setup': setup,
                 'socket': {'url': SOCKET_URL, 'token_parameter': 'access_token'},
