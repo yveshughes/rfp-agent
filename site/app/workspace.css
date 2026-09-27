@@ -76,3 +76,21 @@
 
 /* Keep opportunity discovery focused on the customer's decision. */
 .opportunity-profile{padding:14px 16px;background:var(--mint);border-radius:9px;font-size:12px;line-height:1.7;color:var(--green)}.opportunity-profile button{padding:0;text-decoration:underline;text-underline-offset:3px;font-size:12px}.opportunity-description{margin-top:10px;max-width:430px;font-weight:400}.opportunity-description summary{font-size:11px;color:var(--green);cursor:pointer}.opportunity-description p{font-size:12px;line-height:1.7;overflow-wrap:anywhere}.opportunity-description a,.fit-explanation a{display:inline-block;color:var(--green);font-size:11px;margin-top:10px}.opportunity-footnote{margin-top:22px}.opportunity-pursue{white-space:nowrap;color:var(--green);font-size:11px}#opportunity-rows .fit-explanation{min-width:100px;max-width:230px}#opportunity-rows .fit-explanation summary{font-size:11px;color:var(--green)}#opportunity-rows td:nth-child(2){min-width:85px}#opportunity-rows td{line-height:1.6}#opportunity-rows .opportunity-status{font-size:10px}
+
+/* Multi-state source filtering. */
+.state-filter{position:relative;min-width:130px;align-self:stretch}
+.state-filter>summary{height:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:20px;list-style:none;cursor:pointer;border:1px solid var(--line);border-radius:9px;background:white;padding:9px 12px;font-size:11px}
+.state-filter>summary::-webkit-details-marker{display:none}
+.state-filter[open]>summary{border-color:#a6b89b;background:var(--mint)}
+.state-filter-menu{position:absolute;right:0;top:calc(100% + 7px);z-index:5;width:240px;max-width:calc(100vw - 110px);background:white;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px #20302318;overflow:hidden}
+.state-filter-heading,.state-filter-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font-size:11px}
+.state-filter-heading{border-bottom:1px solid var(--line)}
+.state-filter-heading strong{font-weight:600}
+.state-filter-heading button{font-size:11px;color:var(--green);text-decoration:underline;text-underline-offset:3px}
+.state-filter-options{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:8px;max-height:260px;overflow-y:auto}
+.state-filter-options label{display:flex;align-items:center;gap:9px;padding:9px;border-radius:6px;cursor:pointer;font-size:12px}
+.state-filter-options label:hover,.state-filter-options label:has(input:checked){background:var(--mint)}
+.state-filter-options input{width:15px;height:15px;margin:0;accent-color:var(--green)}
+.state-filter-footer{border-top:1px solid var(--line);justify-content:flex-end}
+.state-filter-footer button{border-radius:7px;background:var(--green);color:white;padding:7px 16px;font-size:11px}
+.state-filter :focus-visible{outline:2px solid var(--green);outline-offset:2px}

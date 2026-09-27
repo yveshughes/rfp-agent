@@ -110,13 +110,35 @@ $('#chat-form').onsubmit=async e=>{
   chatSuggestions.update();
 };
 $('#chat-input').onkeydown=e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('#chat-form').requestSubmit();}};
-$('#start-california').onclick=()=>{showView('sources');$('#state-filter').value='CA';offset=0;loadSources();};
+const selectedStates=new Set();
+function updateStateFilter(){
+  const codes=[...selectedStates].sort();
+  $('#state-filter-label').textContent=codes.length?(codes.length<=3?codes.join(', '):`${codes.length} states`):'All states';
+  $('#state-filter-summary').setAttribute('aria-label',`Filter by states: ${codes.join(', ')||'All states'}`);
+  $('#state-filter-options').querySelectorAll('input').forEach(input=>{input.checked=selectedStates.has(input.value);});
+}
+function applyStateFilter(){updateStateFilter();offset=0;loadSources();}
+function closeStateFilter(){ $('#state-filter').open=false; }
+$('#state-filter-options').onchange=e=>{
+  const input=e.target;if(!input.matches('input[type="checkbox"]'))return;
+  if(input.checked)selectedStates.add(input.value);else selectedStates.delete(input.value);
+  applyStateFilter();
+};
+$('#state-filter-clear').onclick=()=>{selectedStates.clear();applyStateFilter();};
+$('#state-filter-done').onclick=()=>{closeStateFilter();$('#state-filter-summary').focus();};
+$('#state-filter').onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();closeStateFilter();$('#state-filter-summary').focus();}};
+document.addEventListener('click',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
+document.addEventListener('focusin',e=>{if(!$('#state-filter').contains(e.target))closeStateFilter();});
+$('#start-california').onclick=()=>{selectedStates.clear();selectedStates.add('CA');updateStateFilter();offset=0;showView('sources');};
 $('#start-berkeley').onclick=()=>startResearch({source_id:5426},'Berkeley, California');
 $('#start-import').onclick=()=>companyProfile.documents();
 async function loadSources(){
   const request=++pendingSearch;
-  try{const data=await api('/sources?'+new URLSearchParams({q:$('#source-search').value,state:$('#state-filter').value,offset:String(offset),limit:'30',watched:String($('#watched-only').checked)}));if(request!==pendingSearch)return;sourceTotal=data.total;$('#watch-count').textContent=`${data.watch_count} / ${data.watch_limit} sources watched`;
-    if($('#state-filter').options.length===1){data.states.forEach(s=>{const opt=document.createElement('option');opt.value=s;opt.textContent=s;$('#state-filter').append(opt);});}
+  try{const data=await api('/sources?'+new URLSearchParams({q:$('#source-search').value,state:[...selectedStates].sort().join(','),offset:String(offset),limit:'30',watched:String($('#watched-only').checked)}));if(request!==pendingSearch)return;sourceTotal=data.total;$('#watch-count').textContent=`${data.watch_count} / ${data.watch_limit} sources watched`;
+    if(!$('#state-filter-options').children.length){
+      $('#state-filter-options').innerHTML=data.states.filter(Boolean).map(s=>`<label><input type="checkbox" value="${esc(s)}"><span>${esc(s)}</span></label>`).join('');
+      updateStateFilter();
+    }
     $('#indexed-count').textContent=`${data.indexed.toLocaleString()} sources indexed`;
     $('#source-count').textContent=data.total?`${offset+1}–${Math.min(offset+30,data.total)} of ${data.total.toLocaleString()} sources`:'No matching sources';
     $('#prev-page').disabled=offset===0;$('#next-page').disabled=offset+30>=data.total;
@@ -127,7 +149,7 @@ async function loadSources(){
 }
 $('#watched-only').onchange=()=>{offset=0;loadSources();};
 $('#source-search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{offset=0;loadSources();},200);};
-$('#state-filter').onchange=()=>{offset=0;loadSources();};$('#filter-california').onclick=()=>{$('#state-filter').value='CA';offset=0;loadSources();};
+$('#filter-california').onclick=()=>{selectedStates.add('CA');applyStateFilter();};
 $('#prev-page').onclick=()=>{offset=Math.max(0,offset-30);loadSources();};$('#next-page').onclick=()=>{offset+=30;loadSources();};
 function rfpsTab(directory){if(directory){showView('sources');return;}showAllOpportunities();}
 async function startResearch(request,label){

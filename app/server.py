@@ -272,8 +272,9 @@ async def state():
 @app.get('/api/sources')
 async def sources(q: str='', state: str='', offset: int=0, limit: int=30, watched: bool=False):
     if offset < 0 or not 1 <= limit <= 100: raise HTTPException(400, 'Invalid page')
+    selected_states = {code.strip().upper() for code in state.split(',') if code.strip()}
     with db() as c: watching={r['source_id'] for r in c.execute('SELECT source_id FROM watches')}
-    rows = [r for r in SOURCES if (not watched or r['id'] in watching) and (not state or r.get('state_code')==state) and (not q or q.lower() in (r.get('name','')+' '+r.get('state_code','')).lower())]
+    rows = [r for r in SOURCES if (not watched or r['id'] in watching) and (not selected_states or r.get('state_code') in selected_states) and (not q or q.lower() in (r.get('name','')+' '+r.get('state_code','')).lower())]
     with db() as c: checks={r['source_id']:r['checked'] for r in c.execute('SELECT source_id,checked FROM checks')}
     return {'total':len(rows),'indexed':len(SOURCES),'watch_count':len(watching),'watch_limit':WATCH_LIMIT,'states':sorted(set(r.get('state_code','') for r in SOURCES)), 'rows':[dict(id=r['id'],name=r['name'],state=r.get('state_code'),url=r.get('procurement_url') or r.get('official_url'),checked=checks.get(r['id']),watched=r['id'] in watching) for r in rows[offset:offset+limit]]}
 

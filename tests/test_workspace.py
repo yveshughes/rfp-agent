@@ -8,6 +8,28 @@ os.environ['BILLY_DATA_DIR'] = tempfile.mkdtemp(prefix='billy-test-')
 from app import server
 
 class WorkspaceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_multiple_states_with_search_pagination_and_watched_filter(self):
+        records=[dict(id=900001+i,name=name,state_code=code,official_url='https://example.com')
+                 for i,(name,code) in enumerate([('City A','CA'),('City B','NV'),('City C','OR'),('County D','NV')])]
+        with patch.object(server,'SOURCES',records):
+            with server.db() as c:
+                c.execute('INSERT INTO watches(source_id,added) VALUES (?,?)',(900002,0))
+            try:
+                combined=await server.sources(state=' ca, NV,CA ')
+                self.assertEqual(combined['total'],3)
+                self.assertEqual([r['id'] for r in combined['rows']],[900001,900002,900004])
+                page=await server.sources(state='CA,NV',offset=1,limit=1)
+                self.assertEqual(page['total'],3)
+                self.assertEqual([r['id'] for r in page['rows']],[900002])
+                search=await server.sources(state='CA,NV',q='City')
+                self.assertEqual([r['id'] for r in search['rows']],[900001,900002])
+                watched=await server.sources(state='CA,NV',watched=True)
+                self.assertEqual([r['id'] for r in watched['rows']],[900002])
+                self.assertEqual((await server.sources(state=''))['total'],4)
+                self.assertEqual((await server.sources(state='CA'))['total'],1)
+            finally:
+                with server.db() as c:c.execute('DELETE FROM watches WHERE source_id=?',(900002,))
+
     @unittest.skipUnless(server.SOURCE_FILE.exists(), "Private source dataset required")
     async def test_directory_and_jurisdiction(self):
         all_rows = await server.sources(q='',state='',offset=0,limit=100)
