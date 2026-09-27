@@ -448,7 +448,8 @@ async def store_pdf(raw, name, first_page=1, last_page=0, rfp_id=None, source_ur
         end=last_page or (min(total,100) if automatic else total)
         if first_page<1 or end<first_page or end>total or end-first_page>99:
             raise ValueError('Choose up to 100 pages within the PDF.')
-        pages=[{'page':i+1,'text':(reader.pages[i].extract_text() or '')[:60000]} for i in range(first_page-1,end)]
+        # 50,000 characters keeps any single page inside the agent's per-call result limit.
+        pages=[{'page':i+1,'text':(reader.pages[i].extract_text() or '')[:50000]} for i in range(first_page-1,end)]
         return end,pages,total
     try: end,pages,total=await asyncio.wait_for(asyncio.to_thread(extract),timeout=40)
     except Exception: raise HTTPException(400,'Could not read this PDF. Check that it is unlocked and the selected range contains at most 100 pages.')

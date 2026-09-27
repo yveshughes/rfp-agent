@@ -208,6 +208,54 @@ class AgentTests(unittest.IsolatedAsyncioTestCase):
         await server.agent.execute('run','read_document',{'document_id':'prior-full','start_page':40})
         server.agent.require_imports_read('run')
 
+    async def test_snapshot_is_bounded_to_recent_messages_with_receipts(self):
+        from app.agent import SNAPSHOT_MESSAGES
+        with server.db() as c:
+            c.execute("INSERT INTO agent_runs VALUES ('run','complete',NULL,'test',1,1,'')")
+            for i in range(SNAPSHOT_MESSAGES+10):
+                c.execute('INSERT INTO agent_messages(run_id,role,text,created) VALUES (?,?,?,?)',('run','user' if i%2==0 else 'billy',f'message {i}',float(i)))
+            # A website read just before the first shown reply must still be credited to it.
+            first_shown_reply=11.0
+            c.execute('INSERT INTO agent_steps(run_id,tool,arguments,result,model,usage,created) VALUES (?,?,?,?,?,?,?)',('run','read_company_website','{}',json.dumps({'web_page_id':'p1'}),'test','{}',10.5))
+            c.execute('INSERT INTO agent_steps(run_id,tool,arguments,result,model,usage,created) VALUES (?,?,?,?,?,?,?)',('run','company','{}','{}','test','{}',2.0))
+        snap=await server.agent.snapshot()
+        self.assertEqual(len(snap['messages']),SNAPSHOT_MESSAGES)
+        self.assertEqual(snap['run']['total_messages'],SNAPSHOT_MESSAGES+10)
+        self.assertTrue(snap['run']['messages_truncated'])
+        self.assertEqual(snap['messages'][0]['text'],'message 10')
+        self.assertEqual(snap['messages'][1]['outcome']['summary'],'I reviewed your website.')
+        self.assertEqual([s['tool'] for s in snap['steps']],['read_company_website'])
+
+    async def test_read_markers_expire_when_a_new_turn_starts(self):
+        rid=(await server.create_rfp(server.RFPInput(title='Short RFP')))['id']
+        with server.db() as c:
+            c.execute("INSERT OR REPLACE INTO documents(id,name,first_page,last_page,total_pages,added,pages,rfp_id) VALUES ('short-doc','RFP',1,1,1,1,?,?)",(json.dumps([{'page':1,'text':'Provide three client references.'}]),rid))
+        with patch('app.agent.complete',side_effect=[(AgentAction(tool='ask',arguments={'message':'Which response should I reuse?'}),'test-model',{})]):
+            await server.agent.message(AgentTurn(text='Look at my RFP',request_id='turn-one'))
+            await server.agent.task
+        run=(await server.agent.snapshot())['run']['id']
+        with server.db() as c:c.execute('UPDATE agent_runs SET rfp_id=? WHERE id=?',(rid,run))
+        await server.agent.execute(run,'read_document',{'document_id':'short-doc'})
+        server.agent.require_rfp_read(run,rid)
+        with patch('app.agent.complete',side_effect=[(AgentAction(tool='ask',arguments={'message':'Still here?'}),'test-model',{})]):
+            await server.agent.message(AgentTurn(text='Now analyze it',request_id='turn-two'))
+            await server.agent.task
+        with self.assertRaisesRegex(ValueError,'Read remaining RFP pages'):server.agent.require_rfp_read(run,rid)
+
+    async def test_oversized_page_batch_unmarks_only_that_batch(self):
+        with server.db() as c:
+            c.execute("INSERT INTO agent_runs VALUES ('run','running',NULL,'test',1,1,'')")
+            c.execute("INSERT OR REPLACE INTO documents(id,name,first_page,last_page,total_pages,added,pages,rfp_id) VALUES ('huge','RFP',1,3,3,1,?,NULL)",(json.dumps([{'page':1,'text':'short'},{'page':2,'text':'"'*40000},{'page':3,'text':'short'}]),))
+        actions=iter([AgentAction(tool='read_document',arguments={'document_id':'huge','count':1}),AgentAction(tool='read_document',arguments={'document_id':'huge','start_page':2,'count':2}),AgentAction(tool='ask',arguments={'message':'Which pages next?'})])
+        with patch('app.agent.complete',side_effect=lambda messages:(next(actions),'test-model',{})):
+            await server.agent.message(AgentTurn(text='Read the huge file',request_id='huge-read'))
+            await server.agent.task
+        with server.db() as c:
+            pages=sorted(r[0] for r in c.execute("SELECT page FROM agent_read_pages WHERE document_id='huge'"))
+            results=[json.loads(r[0]) for r in c.execute("SELECT result FROM agent_steps WHERE tool='read_document' ORDER BY id")]
+        self.assertEqual(pages,[1])
+        self.assertIn('not counted as reviewed',results[1]['error'])
+
     async def test_budget_preflight_prevents_provider_call(self):
         with patch.dict(os.environ,{'BILLY_INFERENCE_BUDGET_USD':'0'}),patch('app.agent.complete') as provider:
             await server.agent.message(AgentTurn(text='Find RFPs',request_id='budget'))
