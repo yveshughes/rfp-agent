@@ -53,7 +53,7 @@
         </section>
       </div>
       <div id="netbird" class="tech-panel" aria-labelledby="tab-netbird">
-        <section class="workflow-section" aria-labelledby="netbird-title">
+        <section class="workflow-section" id="netbird" aria-labelledby="netbird-title">
           <div class="chart-header"><div><span class="number">WHY NETBIRD</span><h2 id="netbird-title">Private work. Controlled access.</h2></div></div>
           <p class="tech-lead">Billy’s API never listens on a public port. The Vultr VM is a peer on a NetBird network; the owner’s Mac is another. Reviewers reach the workspace through NetBird’s authenticated reverse proxy over HTTPS, and the owner can also reach it directly over the encrypted peer-to-peer link. Proposals carry pricing and insurance, so the boundary comes first.</p>
           <div class="architecture">
@@ -62,6 +62,7 @@
             <div class="arch-row"><span class="tech-badge">PEERS</span><div><h3>Direct peer-to-peer</h3><p>The owner’s Mac and the VM hold a WireGuard connection through NetBird. The Mac reaches Billy at the VM’s NetBird address with no SSH tunnel and no open port; measured round trip about 20 ms.</p></div></div>
             <div class="arch-row"><span class="tech-badge">LIFECYCLE</span><div><h3>Revoke from the dashboard</h3><p>Disable the Service or remove a peer in NetBird and access ends. Approval to submit a proposal remains a separate, in-app human decision; NetBird governs who can reach the workspace, not what Billy may send.</p></div></div>
           </div>
+          <figure class="tech-figure"><img src="/assets/netbird-peers.webp" width="2000" height="1147" loading="lazy" alt="NetBird onboarding screen: the owner’s MacBook at 100.85.8.192 and the rfp-agent Vultr VM at 100.85.123.214 connected as peers, with the connection test passed."><figcaption>The two peers in NetBird: the owner’s Mac and the <code>rfp-agent</code> Vultr VM, joined over WireGuard. The reverse-proxy Service publishes the VM’s port 8787 behind PIN or SSO login; the VM itself has no open application port.</figcaption></figure>
           <p class="tech-reference"><a href="https://docs.netbird.io/manage/reverse-proxy" target="_blank" rel="noopener noreferrer">NetBird reverse proxy documentation ↗</a></p>
           <div class="decision-list"><details><summary>Current access boundary</summary><div><p>Two NetBird peers (VM and owner’s Mac), one authenticated HTTPS Service in front of the loopback-only API, firewall rule limited to the NetBird interface, SSH kept for administration only. There are still no per-user accounts inside the app; NetBird’s login is the gate. The public pitch on port 80 grants no access to the backend or company files.</p></div></details></div>
         </section>
