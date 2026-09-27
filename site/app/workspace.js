@@ -1,15 +1,15 @@
-import {createAutopilot} from './autopilot.js?v=1';
+import {createAutopilot} from './autopilot.js?v=autopilot-queue-1';
 import {createDiscussionAgenda} from './discussion-agenda.js?v=friendly-topics-1';
 import {createDocumentReview} from './document-review.js?v=1';
 import {createChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {createChatSuggestions,suggestedPrompts} from './chat-suggestions.js?v=website-prompt-1';
 import {connectWorkspace} from './workspaces.js?v=profile-colors-1';
-import {createAgentChat} from './agent-chat.js?v=autopilot-1';
+import {createAgentChat} from './agent-chat.js?v=autopilot-queue-1';
 import {createOpportunityFeed} from './opportunities.js?v=customer-opportunities-1';
 import {createDiscussion} from './discuss.js?v=voice-agenda-1';
-import {createRFPDetail} from './rfp-detail.js?v=autopilot-1';
+import {createRFPDetail} from './rfp-detail.js?v=autopilot-queue-1';
 import {createCompanyProfile} from './company.js?v=company-attachments-1';
-import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=autopilot-1';
+import {createBillyMotion,setupMotionPreview,resolveBillyPanel} from './billy-motion.js?v=autopilot-queue-1';
 const $ = selector => document.querySelector(selector);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const local = ['localhost','127.0.0.1'].includes(location.hostname);
@@ -58,14 +58,14 @@ setupMotionPreview();
 const rfpDetail=createRFPDetail({api,esc,toast,getDocuments:()=>state?.documents||[],openDiscussion:(context,label)=>discussion.open(context,label)});
 const opportunityFeed=createOpportunityFeed({api,esc,toast,openRFP,showSources:()=>showView('sources'),showCompany:()=>showView('company'),openDocument});
 const companyProfile=createCompanyProfile({storageKey,api,esc,toast,showView,addMessage,openDocument,getState:()=>state,openDiscussion:(context,label,action)=>discussion.open(context,label,action)});
-const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();await discussionAgenda.refresh(true);}});
+const discussion=createDiscussion({api,esc,toast,selectPanel,showView,sendAgent:(text,context)=>sendContextualMessage(text,context),onState:value=>{discussionState=value;updateBillyMotion();},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await rfpDetail.reloadNotes();await discussionAgenda.refresh(true);}});
 const discussionAgenda=createDiscussionAgenda({api,esc,onSelect:item=>discussion.open(item.context,item.label,'start',item.question)});
 let chatSuggestions,autopilot;
 const documentReview=createDocumentReview({esc,resourceURL:path=>API+path,openDocument,openBrowser:expandBrowser});
 let reviewSnapshot=null;
-const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
+const agentChat=createAgentChat({api,esc,toast,openReview:id=>autopilot.openReview(id),openDocument,openCompany:()=>showView('company'),onReply:text=>{if(text&&!document.hidden&&currentView==='chats'&&$('#discuss-read-aloud').checked&&'speechSynthesis' in window){speechSynthesis.cancel();const speech=new SpeechSynthesisUtterance(text);speech.rate=1.05;speechSynthesis.speak(speech);}},openRFP,resourceURL:path=>API+path,onState:(value,activity,snapshot)=>{agentState=value;agentActivity=activity;reviewSnapshot=snapshot;updateBillyMotion();documentReview.update(snapshot,state,activity);chatSuggestions?.update();autopilot?.update(snapshot);},onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await companyProfile.load();await loadRFPs();await discussionAgenda.refresh(true);},companyChatActive:()=>companyProfile.hasChat(),importDocument:()=>companyProfile.documents()});
 autopilot=createAutopilot({api,esc,toast,resourceURL:path=>API+path,onChange:async()=>{await agentChat.poll();await loadRFPs();selectPanel('work');}});
-const chatAttachments=createChatAttachments({api,esc,toast,onSaved:async()=>{await refresh();renderDocuments();}});
+const chatAttachments=createChatAttachments({api,esc,toast,onPipelineChange:()=>loadRFPs(),onSaved:async()=>{await refresh();renderDocuments();}});
 chatSuggestions=createChatSuggestions({input:$('#chat-input'),getCandidates:()=>companyProfile.hasChat()?[]:suggestedPrompts(agentChat.getSnapshot())});
 function toast(message) { $('#toast').textContent=message; $('#toast').hidden=false; clearTimeout(toast.timer); toast.timer=setTimeout(()=>$('#toast').hidden=true,6500); }
 async function api(path, data) {

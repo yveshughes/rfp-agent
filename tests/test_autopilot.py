@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 os.environ.setdefault('BILLY_DATA_DIR',tempfile.mkdtemp(prefix='billy-autopilot-test-'))
 from app import server
-from app.agent import AgentAction,AgentTurn,DiscussionContext
+from app.agent import AgentAction,AgentTurn,AgentResume,DiscussionContext
 from app.rfp_workspace import ResponseSection,ResponseCheck
 
 
@@ -15,7 +15,7 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         await server.agent.close()
         with server.db() as c:
-            for table in ('agent_modes','agent_message_documents','agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages'):
+            for table in ('agent_queue_items','agent_queues','agent_modes','agent_message_documents','agent_runs','agent_messages','agent_steps','agent_analysis','agent_usage','agent_read_pages'):
                 c.execute('DELETE FROM '+table)
         env=patch.dict(os.environ,{'VULTR_SERVERLESS_INFERENCE_API_KEY':'test-only','BILLY_VULTR_MODEL':'test-model'})
         env.start();self.addCleanup(env.stop)
@@ -103,6 +103,99 @@ class AutopilotTests(unittest.IsolatedAsyncioTestCase):
             result=await server.agent.execute('test','opportunities',{})
         self.assertEqual([r['id'] for r in result['rows']],['1','2'])
         self.assertGreater(result['rows'][0]['days_remaining'],0);self.assertIsNone(result['rows'][1]['days_remaining'])
+
+    async def test_continuous_queue_prepares_two_responses_without_waiting_for_review(self):
+        with patch('app.server.public_url',return_value='https://agency.example/second'):
+            second=(await server.create_rfp(server.RFPInput(title='Second lighting project',url='https://agency.example/second',deadline='2099-06-01')))['id']
+        ids=[self.rfp,second];docs={}
+        for rid in ids:
+            with server.db() as c:c.execute('INSERT INTO discovered_rfps(rfp_id,pursued) VALUES (?,0)',(rid,))
+            with patch.object(server.rfp_research,'fetch',return_value=(b'<main>Provide a lighting installation plan. Include team qualifications, implementation schedule and a detailed fee proposal.</main>','https://agency.example/rfp')):
+                docs[rid]=(await server.rfp_research.read(rid))['document']['id']
+        actions=[]
+        for rid in ids:
+            actions.extend([AgentAction(tool='pursue',arguments={'rfp_id':rid,'reason':'Lighting fit, with time before the deadline.'}),
+                AgentAction(tool='read_document',arguments={'document_id':docs[rid]}),
+                AgentAction(tool='save_analysis',arguments={'requirements':[{'text':'Lighting plan','document_id':docs[rid],'page':1,'quote':'Provide a lighting installation plan.','status':'needs_confirmation','gap_question':'Confirm schedule.'}]}),
+                *[AgentAction(tool='save_section',arguments={'section_id':str(i),'title':'Section '+str(i),'body':'Lighting installation. [NEEDS CONFIRMATION: schedule]','version':0}) for i in range(1,4)],
+                AgentAction(tool='export_pdf'),AgentAction(tool='finish',arguments={'message':'This is an excessively long completed response. '*20})])
+        actions.append(AgentAction(tool='finish',arguments={'message':'No further suitable opportunities remain.','blocked_reason':'No further suitable opportunities remain.'}))
+        iterator=iter(actions);researching=[]
+        async def provider(rid,messages):
+            action=next(iterator)
+            if action.tool=='read_document':
+                snapshot=await server.agent.snapshot()
+                self.assertEqual(snapshot['run']['status'],'running')
+                pipeline=(await server.rfps())['rows']
+                target=next(r for r in pipeline if r['id']==snapshot['run']['rfp_id'])
+                self.assertEqual(target['status'],'Researching');researching.append(target['id'])
+            return action,'test-model',{}
+        with patch.object(server.agent,'request_action',side_effect=provider):
+            await server.agent.message(AgentTurn(text='Keep preparing suitable RFPs.',autopilot=True,continuous=True,request_id='queue-e2e'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'complete',snap['run']['error']);self.assertTrue(snap['run']['continuous'])
+        self.assertEqual(researching,ids)
+        self.assertEqual([(i['rfp_id'],i['status']) for i in snap['run']['queue_items']],[(rid,'ready') for rid in ids])
+        self.assertEqual([m['role'] for m in snap['messages']].count('user'),1)
+        for rid in ids:self.assertTrue((await server.response_review(rid))['ready'])
+        with self.assertRaisesRegex(ValueError,'already handled'):
+            await server.agent.execute(snap['run']['id'],'pursue',{'rfp_id':self.rfp,'reason':'Again'})
+        rows=[{'id':rid,'title':'Lighting','agency':'Agency','deadline':'2099-01-01','status':'Researching','fit':{}} for rid in ids]
+        with patch.object(server.agent,'feed',return_value={'rows':rows}):
+            self.assertEqual((await server.agent.execute(snap['run']['id'],'opportunities',{}))['rows'],[])
+
+    async def test_blocked_item_is_skipped_and_queue_survives_pause_resume(self):
+        with patch('app.server.public_url',return_value='https://agency.example/second'):
+            second=(await server.create_rfp(server.RFPInput(title='Next project',url='https://agency.example/second',deadline='2099-06-01')))['id']
+        actions=iter([AgentAction(tool='pursue',arguments={'rfp_id':self.rfp,'reason':'Possible fit'}),
+            AgentAction(tool='finish',arguments={'message':'Source unavailable; moving on.','blocked_reason':'Source unavailable.'}),
+            AgentAction(tool='pursue',arguments={'rfp_id':second,'reason':'Next suitable fit'})])
+        waiting=asyncio.Event()
+        async def provider(*args):
+            action=next(actions,None)
+            if action:return action,'test-model',{}
+            waiting.set();await asyncio.Future()
+        with patch.object(server.agent,'request_action',side_effect=provider):
+            await server.agent.message(AgentTurn(text='Keep going.',autopilot=True,continuous=True,request_id='queue-pause'))
+            await asyncio.wait_for(waiting.wait(),2)
+            snap=await server.agent.pause()
+        self.assertEqual(snap['run']['status'],'paused');self.assertEqual(snap['run']['rfp_id'],second)
+        self.assertEqual(snap['run']['queue_items'][0]['status'],'blocked')
+        with server.db() as c:session=c.execute('SELECT session_id FROM agent_queues').fetchone()[0]
+        waiting.clear()
+        with patch.object(server.agent,'request_action',side_effect=provider):
+            await server.agent.resume();await asyncio.wait_for(waiting.wait(),2)
+            resumed=await server.agent.pause()
+        self.assertEqual(resumed['run']['rfp_id'],second)
+        self.assertEqual(resumed['run']['queue_items'],snap['run']['queue_items'])
+        with server.db() as c:self.assertEqual(c.execute('SELECT session_id FROM agent_queues').fetchone()[0],session)
+
+    async def test_resume_upgrades_single_run_and_keeps_completed_pdf_unchanged(self):
+        for i in range(1,4):
+            await server.save_response_section(self.rfp,str(i),ResponseSection(title='Section '+str(i),body='Saved response for review.',version=0,checks=[ResponseCheck(text='Review')]))
+        pdf=await server.agent.export_pdf(self.rfp)
+        async def wait(*args):await asyncio.Future()
+        with patch.object(server.agent,'request_action',side_effect=wait):
+            await server.agent.message(AgentTurn(text='Prepare this response.',autopilot=True,context=DiscussionContext(rfp_id=self.rfp),request_id='single-resume'))
+            await asyncio.sleep(0);await server.agent.pause()
+        action=AgentAction(tool='finish',arguments={'message':'No further suitable opportunities remain.','blocked_reason':'No further suitable opportunities remain.'})
+        with patch('app.agent.complete',return_value=(action,'test-model',{})) as provider:
+            await server.agent.resume(AgentResume(continuous=True));await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertTrue(snap['run']['continuous']);self.assertEqual(snap['run']['status'],'complete')
+        self.assertEqual(snap['run']['queue_items'][0]['status'],'ready')
+        self.assertEqual((await server.response_review(self.rfp))['pdf']['id'],pdf['id'])
+        self.assertEqual(provider.call_count,1)
+
+    async def test_workspace_blocker_stops_continuous_queue(self):
+        action=AgentAction(tool='finish',arguments={'message':'Add company capability evidence before I can prepare responses.','blocked_reason':'No usable company evidence.','queue_stop':True})
+        with patch('app.agent.complete',return_value=(action,'test-model',{})):
+            await server.agent.message(AgentTurn(text='Keep going.',autopilot=True,continuous=True,context=DiscussionContext(rfp_id=self.rfp),request_id='queue-blocked'))
+            await server.agent.task
+        snap=await server.agent.snapshot()
+        self.assertEqual(snap['run']['status'],'complete');self.assertTrue(snap['run']['blocked_reason'])
+        self.assertEqual(snap['run']['queue_items'],[])
 
     async def test_source_only_follows_recorded_links_and_reuses_saved_snapshot(self):
         html=b'<main>Official request for lighting installation. Proposals must include a work plan and pricing.<a href="/original.pdf">Original RFP</a></main>'

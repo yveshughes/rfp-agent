@@ -2,13 +2,15 @@ import {renderChatAttachments} from './chat-attachments.js?v=pdf-thumbnail-1';
 import {resolveAgentActivity} from './billy-motion.js?v=autopilot-1';
 import {renderChatOutcome} from './chat-cards.js?v=1';
 
-export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply,openReview}) {
+export function createAgentChat({api,esc,toast,openRFP,openCompany,openDocument,onState,onSaved,importDocument,companyChatActive,resourceURL,onReply,openReview,onPipelineChange}) {
   const $=s=>document.querySelector(s);
   const host=document.createElement('div');host.id='agent-conversation';host.className='conversation';$('#chat-scroll').append(host);
-  let snapshot=null,polling=false,sending=false,signature='',lastStatus='',discussionReply=false;
+  let snapshot=null,polling=false,sending=false,signature='',lastStatus='',pipelineSignature='',discussionReply=false;
   function render(){
     const {run,messages,steps,config}=snapshot;
     $('#chat-status').textContent=config.configured?`Billy · ${config.provider} · ${run?.model||config.model}`:'Billy needs a Vultr inference connection before he can work.';
+    const pipelineKey=JSON.stringify([run?.rfp_id,run?.status,run?.queue_items,steps?.filter(s=>['pursue','save_section','export_pdf'].includes(s.tool)).at(-1)?.id]);
+    if(pipelineSignature!==pipelineKey){const changed=!!pipelineSignature;pipelineSignature=pipelineKey;if(changed)onPipelineChange?.();}
     onState(run?.status==='running'?'thinking':null,resolveAgentActivity(snapshot),snapshot);
     $('#chat-form button[type="submit"]').disabled=sending||$('#chat-form').dataset.uploading==='true'||run?.status==='running';
     const companyMode=companyChatActive();host.hidden=companyMode;
